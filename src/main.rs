@@ -6,12 +6,11 @@ use std::{
     time::Duration,
 };
 
+use config::Context;
 use reqwest::Url;
-use subalfred_core::state::fork_off::{fork_off, ForkOffConfig};
-use tokio::net::TcpListener;
 use tracing::{debug, trace};
 use zombienet_configuration::RegistrationStrategy;
-use zombienet_configuration::{types::AssetLocation, NetworkConfig};
+use zombienet_configuration::types::AssetLocation;
 use zombienet_orchestrator::Orchestrator;
 use zombienet_orchestrator::{
     metrics::{Metrics, MetricsHelper},
@@ -23,14 +22,23 @@ use zombienet_provider::{
     DynNamespace, DynNode, DynProvider, NativeProvider, Provider,
 };
 use zombienet_support::{fs::local::LocalFileSystem, net::wait_ws_ready};
+use futures::future::try_join_all;
+use futures::FutureExt;
 
-async fn sync(ns: DynNamespace) -> Result<(DynNode, String), ()> {
+mod utils;
+use utils::get_random_port;
+mod chain_spec_raw;
+mod config;
+
+mod fork_off;
+use fork_off::{ForkOffConfig, fork_off};
+
+async fn sync_relay_only(ns: DynNamespace, chain: impl AsRef<str>, rpc_random_port: u16) -> Result<(DynNode, String), ()> {
     let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
-    let rpc_random_port = get_random_port().await;
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node", "polkadot").args(vec![
         "--chain",
-        "polkadot",
+        chain.as_ref(),
         "--sync",
         "warp",
         "-d",
@@ -52,14 +60,55 @@ async fn sync(ns: DynNamespace) -> Result<(DynNode, String), ()> {
     wait_sync(url).await.unwrap();
     println!("sync ok!, stopping node");
     // we should just paused
+    // sync_node.destroy().await.unwrap();
+    Ok((sync_node, sync_db_path))
+}
+
+async fn sync_para(ns: DynNamespace, chain: impl AsRef<str>, relaychain: impl AsRef<str>, relaychain_rpc_port: u16) -> Result<(DynNode, String), ()> {
+    let relay_rpc_url = format!("ws://localhost:{relaychain_rpc_port}");
+    wait_ws_ready(&relay_rpc_url).await.unwrap();
+    let sync_db_path = format!("{}/paras/{}/sync-db", ns.base_dir().to_string_lossy(), chain.as_ref());
+    let rpc_random_port = get_random_port().await;
+    let metrics_random_port = get_random_port().await;
+    let opts = SpawnNodeOptions::new("sync-node-para", "polkadot-parachain").args(vec![
+        "--chain",
+        chain.as_ref(),
+        "--sync",
+        "warp",
+        "-d",
+        &sync_db_path,
+        "--rpc-port",
+        &rpc_random_port.to_string(),
+        "--prometheus-port",
+        &metrics_random_port.to_string(),
+        "--relay-chain-rpc-url",
+        &format!("ws://localhost:{relaychain_rpc_port}"),
+        "--",
+        "--chain",
+        relaychain.as_ref(),
+    ]);
+
+    println!("{:?}",opts);
+    let sync_node = ns.spawn_node(&opts).await.unwrap();
+    let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
+
+    println!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
+    println!("logs: {}", sync_node.log_cmd());
+
+    wait_ws_ready(&metrics_url).await.unwrap();
+    let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
+    wait_sync(url).await.unwrap();
+    println!("sync ok!, stopping node");
+    // we should just paused
     sync_node.destroy().await.unwrap();
     Ok((sync_node, sync_db_path))
 }
 
-async fn export_state(sync_node: DynNode, sync_db_path: String) -> Result<String, ()> {
+async fn export_state(sync_node: DynNode, sync_db_path: String, chain: &str, context: Context) -> Result<String, ()> {
     let exported_state_file = format!("{sync_db_path}/exported-state.json");
+
     let cmd_opts =
-        RunCommandOptions::new("polkadot").args(vec!["export-state", "-d", &sync_db_path]);
+        RunCommandOptions::new(context.cmd()).args(vec!["export-state", "--chain", chain, "-d", &sync_db_path]);
     debug!("cmd: {:?}", cmd_opts);
     let exported_state_content = sync_node.run_command(cmd_opts).await.unwrap().unwrap();
     tokio::fs::write(&exported_state_file, exported_state_content)
@@ -71,18 +120,20 @@ async fn export_state(sync_node: DynNode, sync_db_path: String) -> Result<String
 }
 
 async fn generate_new_network(
-    network_def: impl AsRef<str>,
+    relay: &config::Relaychain,
     ns: DynNamespace,
     base_dir: impl AsRef<str>,
+    paras: Vec<config::Parachain>
 ) -> Result<NetworkSpec, anyhow::Error> {
     let filesystem = LocalFileSystem;
-    let config = NetworkConfig::load_from_toml(network_def.as_ref()).unwrap();
+    let config = config::generate_network_config(relay, paras).unwrap();
     let mut spec = zombienet_orchestrator::NetworkSpec::from_config(&config)
         .await
         .unwrap();
     let scoped_fs = ScopedFilesystem::new(&filesystem, base_dir.as_ref());
 
-    {
+
+    let relaychain_id = {
         let relaychain = spec.relaychain_mut();
         let chain_spec = relaychain.chain_spec_mut();
         trace!("{chain_spec:?}");
@@ -93,22 +144,40 @@ async fn generate_new_network(
         spec.build_parachain_artifacts(ns.clone(), &scoped_fs, &relaychain_id, true)
             .await
             .unwrap();
-    }
+
+        relaychain_id
+    };
 
     override_paras_asset_location(&mut spec, base_dir.as_ref());
 
-    let mut para_artifacts = vec![];
-    {
-        let paras_in_genesis = spec
-            .parachains_iter()
-            .filter(|para| para.registration_strategy() == &RegistrationStrategy::InGenesis)
-            .collect::<Vec<_>>();
+    let para_artifacts = vec![];
+    // TODO: do we need to add custom paras?
+    // {
+    //     let paras_in_genesis = spec
+    //         .parachains_iter()
+    //         .filter(|para| para.registration_strategy() == &RegistrationStrategy::InGenesis)
+    //         .collect::<Vec<_>>();
 
-        for para in paras_in_genesis {
-            {
-                let genesis_config = para.get_genesis_config().unwrap();
-                para_artifacts.push(genesis_config)
-            }
+    //     for para in paras_in_genesis {
+    //         {
+    //             let genesis_config = para.get_genesis_config().unwrap();
+    //             para_artifacts.push(genesis_config)
+    //         }
+    //     }
+    // }
+
+    // customize chain-spec for paras
+    {
+        for para in spec.parachains_iter() {
+            let para_chain_spec = para.chain_spec().unwrap();
+            para_chain_spec.customize_para(para, &relaychain_id, &scoped_fs).await.unwrap();
+        }
+    }
+
+    {
+        for para in spec.parachains_iter_mut() {
+            let para_chain_spec = para.chain_spec_mut().unwrap();
+            para_chain_spec.build_raw(&ns, &scoped_fs).await.unwrap();
         }
     }
 
@@ -134,6 +203,7 @@ async fn bite(
     fixed_base_dir: impl AsRef<str>,
     chain_spec_raw_path: impl AsRef<str>,
     exported_state_file: impl AsRef<str>,
+    context: config::Context,
 ) -> Result<PathBuf, anyhow::Error> {
     let fork_off_config = ForkOffConfig {
         renew_consensus_with: Some(format!(
@@ -146,11 +216,11 @@ async fn bite(
     };
     trace!("{:?}", fork_off_config);
     println!("{}", exported_state_file.as_ref());
+    println!("{:?}", fork_off_config);
 
-    let r = fork_off(exported_state_file.as_ref(), &fork_off_config);
-    trace!("{:?}", r);
-    let forked_off_path =
-        PathBuf::from_str(&format!("{}.fork-off", exported_state_file.as_ref())).unwrap();
+    let forked_off_path = fork_off(exported_state_file.as_ref(), &fork_off_config, context).await?;
+    println!("{:?}", forked_off_path);
+
     Ok(forked_off_path)
 }
 
@@ -158,8 +228,8 @@ async fn spawn_forked_network(
     provider: DynProvider,
     mut spec: NetworkSpec,
     forked_off_path: impl Into<PathBuf>,
+    paras_forked_off_paths: Vec<PathBuf>,
 ) -> Result<Network<LocalFileSystem>, anyhow::Error> {
-    // let forked_off_path  = PathBuf::from_str(&format!("{exported_state_file}.fork-off")).unwrap();
     let relaychain = spec.relaychain_mut();
     let chain_spec = relaychain.chain_spec_mut();
     chain_spec.set_asset_location(AssetLocation::FilePath(forked_off_path.into()));
@@ -172,6 +242,7 @@ async fn spawn_forked_network(
     Ok(network)
 }
 
+// TODO: FIX terminal output on multiple tasks
 async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
     const TERMINAL_WIDTH: u32 = 80;
     let url = url.into();
@@ -211,14 +282,27 @@ async fn main() {
 
     if args.len() < 2 {
         panic!(
-            "Missing argument (path to network definition):
-        \t zombie-bite <path to network definition>
+            "Missing argument (network to bite...):
+        \t zombie-bite <polkadot|kusama> [asset-hub]
         "
         );
     }
 
-    // DEMO "/tmp/demo.toml"
-    let path_to_network_def = args[1].clone();
+
+    // TODO: move to clap
+    let relay_chain = if args[1] == "polkadot" { config::Relaychain::Polkadot } else { config::Relaychain::Kusama };
+
+    // TODO: support multiple paras
+    let paras_to: Vec<config::Parachain> = if let Some(paras_to_fork) = args.get(2) {
+        if paras_to_fork == "asset-hub" {
+            vec![config::Parachain::AssetHub]
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
 
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
@@ -229,11 +313,38 @@ async fn main() {
         .await
         .unwrap();
 
-    let (sync_node, sync_db_path) = sync(ns.clone()).await.unwrap();
-    let exported_state_filepath = export_state(sync_node, sync_db_path).await.unwrap();
-    let spec = generate_new_network(&path_to_network_def, ns.clone(), &base_dir_str)
+    let relaychain_rpc_random_port = get_random_port().await;
+    let mut syncs = vec![
+        sync_relay_only(ns.clone(), relay_chain.as_chain_string(), relaychain_rpc_random_port).boxed()
+    ];
+    for para in &paras_to {
+        syncs.push(
+            sync_para(
+                ns.clone(), para.as_chain_string(&relay_chain.as_chain_string()), relay_chain.as_chain_string(), relaychain_rpc_random_port
+            ).boxed()
+        );
+    }
+
+    // syncs.push(sync_relay_only(ns.clone(), relay_chain.as_chain_string(), relaychain_rpc_random_port));
+    let res = try_join_all(syncs).await.unwrap();
+    let mut res_iter = res.into_iter();
+    let (sync_node,sync_db_path) = res_iter.next().unwrap();
+    // stop relay node
+    sync_node.destroy().await.unwrap();
+
+    // We need to build first the parachains artifacts to include the new `Head` in the relaychain
+    for para in &paras_to {
+        // export para state
+        let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
+        let para_exported_state_filepath = export_state(para_sync_node, para_sync_db_path, &para.as_chain_string(&relay_chain.as_chain_string()), Context::Parachain).await.unwrap();
+    }
+
+
+    let exported_state_filepath = export_state(sync_node, sync_db_path, &relay_chain.as_chain_string(), Context::Relaychain).await.unwrap();
+    let spec = generate_new_network(&relay_chain, ns.clone(), &base_dir_str, paras_to)
         .await
         .unwrap();
+
     let chain_spec_raw_generated = spec
         .relaychain()
         .chain_spec()
@@ -244,10 +355,11 @@ async fn main() {
         &base_dir_str,
         chain_spec_raw_generated,
         &exported_state_filepath,
+        relay_chain.context()
     )
     .await
     .unwrap();
-    let _network = spawn_forked_network(provider.clone(), spec, forked_filepath)
+    let _network = spawn_forked_network(provider.clone(), spec, forked_filepath, vec![])
         .await
         .unwrap();
 
@@ -268,15 +380,4 @@ fn override_paras_asset_location(spec: &mut NetworkSpec, base_dir: &str) {
             }
         }
     }
-}
-
-async fn get_random_port() -> u16 {
-    let listener = TcpListener::bind("0.0.0.0:0".to_string())
-        .await
-        .expect("Can't bind a random port");
-
-    listener
-        .local_addr()
-        .expect("We should always get the local_addr from the listener, qed")
-        .port()
 }
