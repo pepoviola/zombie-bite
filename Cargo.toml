@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-zombienet-provider = "0.2"
-zombienet-orchestrator = "0.2"
-zombienet-support = "0.2"
-zombienet-configuration = "0.2"
+zombienet-provider = "0.2.9"
+zombienet-orchestrator = "0.2.9"
+zombienet-support = "0.2.9"
+zombienet-configuration = "0.2.9"
 tokio = "1"
 reqwest = "0.12"
 tracing-subscriber = "0.3.18"
@@ -24,9 +24,15 @@ array-bytes = "6.2"
 codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false, features = ["derive"] }
 futures = "0.3"
 hex = "0.4"
+scale-value = "0.16"
+
+[[bin]]
+name = "regular"
+path = "src/regular.rs"
 
 [patch.crates-io]
-zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
-zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
-zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }
-zombienet-support = { path = "../zombienet-sdk/crates/support" }
+# zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
+# zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
+# zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }
+# zombienet-support = { path = "../zombienet-sdk/crates/support" }
+# zombienet-sdk = { path = "../zombienet-sdk/crates/sdk" }

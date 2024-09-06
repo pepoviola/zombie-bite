@@ -8,8 +8,7 @@ use std::{
 
 use config::Context;
 use reqwest::Url;
-use tracing::{debug, trace};
-use zombienet_configuration::RegistrationStrategy;
+use tracing::{debug, trace, warn};
 use zombienet_configuration::types::AssetLocation;
 use zombienet_orchestrator::Orchestrator;
 use zombienet_orchestrator::{
@@ -33,8 +32,15 @@ mod config;
 mod fork_off;
 use fork_off::{ForkOffConfig, fork_off};
 
+use crate::fork_off::ParasHeads;
+
 async fn sync_relay_only(ns: DynNamespace, chain: impl AsRef<str>, rpc_random_port: u16) -> Result<(DynNode, String), ()> {
-    let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
+    let sync_db_path = if chain.as_ref() == "rococo" {
+        "/tmp/snaps/rococo-snap/".to_string()
+    } else {
+        format!("{}/sync-db", ns.base_dir().to_string_lossy())
+    };
+
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node", "polkadot").args(vec![
         "--chain",
@@ -150,7 +156,7 @@ async fn generate_new_network(
 
     override_paras_asset_location(&mut spec, base_dir.as_ref());
 
-    let para_artifacts = vec![];
+    let mut para_artifacts = vec![];
     // TODO: do we need to add custom paras?
     // {
     //     let paras_in_genesis = spec
@@ -165,19 +171,20 @@ async fn generate_new_network(
     //         }
     //     }
     // }
+    {
+        for para in spec.parachains_iter() {
+            {
+                let genesis_config = para.get_genesis_config().unwrap();
+                para_artifacts.push(genesis_config)
+            }
+        }
+    }
 
     // customize chain-spec for paras
     {
         for para in spec.parachains_iter() {
             let para_chain_spec = para.chain_spec().unwrap();
             para_chain_spec.customize_para(para, &relaychain_id, &scoped_fs).await.unwrap();
-        }
-    }
-
-    {
-        for para in spec.parachains_iter_mut() {
-            let para_chain_spec = para.chain_spec_mut().unwrap();
-            para_chain_spec.build_raw(&ns, &scoped_fs).await.unwrap();
         }
     }
 
@@ -189,6 +196,13 @@ async fn generate_new_network(
             .customize_relay::<_, &PathBuf>(relaychain, &[], para_artifacts, &scoped_fs)
             .await
             .unwrap();
+    }
+
+    {
+        for para in spec.parachains_iter_mut() {
+            let para_chain_spec = para.chain_spec_mut().unwrap();
+            para_chain_spec.build_raw(&ns, &scoped_fs).await.unwrap();
+        }
     }
 
     // create raw version of chain-spec
@@ -204,15 +218,17 @@ async fn bite(
     chain_spec_raw_path: impl AsRef<str>,
     exported_state_file: impl AsRef<str>,
     context: config::Context,
+    paras_head: ParasHeads,
 ) -> Result<PathBuf, anyhow::Error> {
     let fork_off_config = ForkOffConfig {
-        renew_consensus_with: Some(format!(
+        renew_consensus_with: format!(
             "{}/{}",
             fixed_base_dir.as_ref(),
             chain_spec_raw_path.as_ref()
-        )),
+        ),
         simple_governance: false,
         disable_default_bootnodes: true,
+        paras_heads: paras_head
     };
     trace!("{:?}", fork_off_config);
     println!("{}", exported_state_file.as_ref());
@@ -230,11 +246,24 @@ async fn spawn_forked_network(
     forked_off_path: impl Into<PathBuf>,
     paras_forked_off_paths: Vec<PathBuf>,
 ) -> Result<Network<LocalFileSystem>, anyhow::Error> {
-    let relaychain = spec.relaychain_mut();
-    let chain_spec = relaychain.chain_spec_mut();
-    chain_spec.set_asset_location(AssetLocation::FilePath(forked_off_path.into()));
+    {
+        let relaychain = spec.relaychain_mut();
+        let chain_spec = relaychain.chain_spec_mut();
+        chain_spec.set_asset_location(AssetLocation::FilePath(forked_off_path.into()));
+    }
 
-    trace!("{:?}", spec);
+    {
+        let mut paras = spec.parachains_iter_mut();
+        let mut paras_forked = paras_forked_off_paths.into_iter();
+
+        for para in paras.by_ref() {
+            let chain_asset_location = paras_forked.next().unwrap();
+            let chain_spec =    para.chain_spec_mut().unwrap();
+            chain_spec.set_asset_location(AssetLocation::FilePath(chain_asset_location));
+        }
+    }
+
+    println!("{:?}", spec);
 
     let filesystem = LocalFileSystem;
     let orchestrator = Orchestrator::new(filesystem, provider);
@@ -290,18 +319,31 @@ async fn main() {
 
 
     // TODO: move to clap
-    let relay_chain = if args[1] == "polkadot" { config::Relaychain::Polkadot } else { config::Relaychain::Kusama };
+    let relay_chain = match args[1].as_str() {
+        "polkadot" => {config::Relaychain::Polkadot},
+        "kusama" => {config::Relaychain::Kusama},
+        "rococo" => {config::Relaychain::Rococo},
+        _ => { panic!("Invalid network, should be one of 'polkadot, kusama, rococo'"); }
+    };
 
     // TODO: support multiple paras
     let paras_to: Vec<config::Parachain> = if let Some(paras_to_fork) = args.get(2) {
-        if paras_to_fork == "asset-hub" {
-            vec![config::Parachain::AssetHub]
-        } else {
-            vec![]
+        let mut paras_to = vec![];
+        for para in paras_to_fork.trim().split(',').into_iter() {
+            match para {
+                "asset-hub" => paras_to.push(config::Parachain::AssetHub),
+                "coretime" => paras_to.push(config::Parachain::Coretime),
+                "people" => paras_to.push(config::Parachain::People),
+                _ => {
+                    warn!("Invalid para {para}, skipping...");
+                }
+             }
         }
+        paras_to
     } else {
         vec![]
     };
+
 
 
     let filesystem = LocalFileSystem;
@@ -333,17 +375,65 @@ async fn main() {
     sync_node.destroy().await.unwrap();
 
     // We need to build first the parachains artifacts to include the new `Head` in the relaychain
+    let mut paras_exported_state_paths = vec![];
     for para in &paras_to {
         // export para state
         let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
         let para_exported_state_filepath = export_state(para_sync_node, para_sync_db_path, &para.as_chain_string(&relay_chain.as_chain_string()), Context::Parachain).await.unwrap();
+        paras_exported_state_paths.push(para_exported_state_filepath);
     }
 
 
     let exported_state_filepath = export_state(sync_node, sync_db_path, &relay_chain.as_chain_string(), Context::Relaychain).await.unwrap();
-    let spec = generate_new_network(&relay_chain, ns.clone(), &base_dir_str, paras_to)
+
+    let mut spec = generate_new_network(&relay_chain, ns.clone(), &base_dir_str, paras_to.clone())
         .await
         .unwrap();
+
+    // bite paras
+    let mut paras_iter = spec.parachains_iter_mut();
+    let mut paras_exported_state_iter = paras_exported_state_paths.iter();
+    let mut paras_forked_off_paths: Vec<PathBuf> = vec![];
+    let mut paras_heads: ParasHeads = Default::default();
+
+    for para in &paras_to {
+        let para_spec = paras_iter.next().unwrap();
+        let para_raw_generated_path = para_spec.chain_spec().unwrap().raw_path().unwrap().to_string_lossy();
+        // bite para
+        let para_forked_path = bite(
+            &base_dir_str,
+            para_raw_generated_path,
+            paras_exported_state_iter.next().unwrap(),
+            para.context(),
+            Default::default()
+        ).await.unwrap();
+
+        paras_forked_off_paths.push(para_forked_path.clone());
+
+        // Update chainspec to get the new heads
+        if let Some(chain_spec) = para_spec.chain_spec_mut() {
+            chain_spec.set_asset_location(AssetLocation::FilePath(para_forked_path));
+        }
+    }
+
+    drop(paras_iter);
+
+    // rebuild all the para artifacts
+    let scoped_fs = ScopedFilesystem::new(&filesystem, base_dir_str.as_ref());
+    let relaychain_id = {
+        let relaychain_spec = spec.relaychain().chain_spec();
+        relaychain_spec.read_chain_id(&scoped_fs).await.unwrap()
+    };
+    spec.build_parachain_artifacts(ns.clone(), &scoped_fs, &relaychain_id, true)
+    .await
+    .unwrap();
+
+    for para in spec.parachains_iter() {
+        let id = para.id();
+        let head_path = format!("{base_dir_str}/{id}/genesis-state");
+        let head = tokio::fs::read_to_string(head_path).await.unwrap();
+        paras_heads.insert(id, head);
+    }
 
     let chain_spec_raw_generated = spec
         .relaychain()
@@ -351,15 +441,18 @@ async fn main() {
         .raw_path()
         .unwrap()
         .to_string_lossy();
+
     let forked_filepath = bite(
         &base_dir_str,
         chain_spec_raw_generated,
         &exported_state_filepath,
-        relay_chain.context()
+        relay_chain.context(),
+        paras_heads,
     )
     .await
     .unwrap();
-    let _network = spawn_forked_network(provider.clone(), spec, forked_filepath, vec![])
+
+    let _network = spawn_forked_network(provider.clone(), spec, forked_filepath, paras_forked_off_paths)
         .await
         .unwrap();
 
