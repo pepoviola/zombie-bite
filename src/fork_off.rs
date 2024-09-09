@@ -137,6 +137,7 @@ fn clear_consensus(chain_spec: &mut ChainSpec, paras_heads: ParasHeads) {
 		"0x02".into(),
 	);
 	top.remove(&substorager::storage_value_key(&b"System"[..], b"LastRuntimeUpgrade").to_string());
+	top.remove(&substorager::storage_value_key(&b"ParaScheduler"[..], b"SessionStartBlock").to_string());
 }
 
 fn clear_para_consensus(chain_spec: &mut ChainSpec) {
@@ -294,13 +295,20 @@ mod test {
 
 		let inv = array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"CollatorSelection"[..], b"Invulnerables"));
 		println!("aura authorities{}",array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Aura"[..], b"Authorities")));
+
+
 		println!("aura {}",array_bytes::bytes2hex("0x", subhasher::twox128(b"Aura")));
 		println!("babe {}",array_bytes::bytes2hex("0x", subhasher::twox128(b"Babe")));
+		println!("babe_authorities {}", array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Babe"[..], b"Authorities")));
+		println!("babe NextAuthorities {}",array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Babe"[..], b"NextAuthorities")));
 		println!("session {}",array_bytes::bytes2hex("0x", subhasher::twox128(b"Session")));
 		println!("grandpa {}",array_bytes::bytes2hex("0x", subhasher::twox128(b"Grandpa")));
+		println!("grandpa Authorities {}", array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Grandpa"[..], b"Authorities")));
+
 		println!("Authorship {}",array_bytes::bytes2hex("0x", subhasher::twox128(b"Authorship")));
 		println!("Beefy {}",array_bytes::bytes2hex("0x", subhasher::twox128(b"Beefy")));
 		println!("sys_acc {}", array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"System"[..], b"Account")));
+		println!("ParaScheduler_SessionStartBlock {}", array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"ParaScheduler"[..], b"SessionStartBlock")));
 
 		println!("prefix: {prefix}");
 		println!("invulnerables: {inv}");
