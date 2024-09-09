@@ -58,8 +58,8 @@ async fn sync_relay_only(ns: DynNamespace, chain: impl AsRef<str>, rpc_random_po
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
-    println!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    println!("logs: {}", sync_node.log_cmd());
+    debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
+    println!("sync node logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
@@ -98,8 +98,8 @@ async fn sync_para(ns: DynNamespace, chain: impl AsRef<str>, relaychain: impl As
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
-    println!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    println!("logs: {}", sync_node.log_cmd());
+    debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
+    println!("sync para logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
@@ -307,12 +307,11 @@ async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
 async fn main() {
     tracing_subscriber::fmt::init();
     let args: Vec<_> = env::args().collect();
-    println!("{:?}", args);
 
     if args.len() < 2 {
         panic!(
             "Missing argument (network to bite...):
-        \t zombie-bite <polkadot|kusama> [asset-hub]
+        \t zombie-bite <polkadot|kusama> [asset-hub, coretime, people]
         "
         );
     }

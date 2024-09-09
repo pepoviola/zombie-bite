@@ -2,6 +2,8 @@
 name = "zombie-bite"
 version = "0.1.0"
 edition = "2021"
+default-run = "zombie-bite"
+
 
 [dependencies]
 zombienet-provider = "0.2.9"
@@ -26,9 +28,9 @@ futures = "0.3"
 hex = "0.4"
 scale-value = "0.16"
 
-[[bin]]
-name = "regular"
-path = "src/regular.rs"
+# [[bin]]
+# name = "regular"
+# path = "src/regular.rs"
 
 [patch.crates-io]
 # zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
