@@ -15,7 +15,7 @@
 In order to use this tool you will need this binaries available in your `PATH`
 
  - polkadot (and workers)
- - chain-spec-generator (from fellowship repo)
+ - [chain-spec-generator](https://github.com/polkadot-fellows/runtimes/tree/main/chain-spec-generator) (from fellowship repo)
  - polkadot-parachain (to spawn with system parachains)
 
 
