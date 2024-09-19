@@ -44,3 +44,29 @@ cargo run -- kusama asset-hub
 ```
 
 :warning: This feature is working on progress and at the moment the parachain is spawned but _not produce blocks_.
+
+
+---
+
+### Steps for doppelganger :
+  
+Compile the node using [this branch](https://github.com/paritytech/polkadot-sdk/tree/jv-doppelganger-node) from the polkadot-sdk repo
+
+```
+cargo build -p polkadot-doppelganger-node --release
+```
+
+Make polkadot binaries (polkadot and workers) and doppelganger available in your PATH, then run with:
+
+  ``` 
+  RUST_LOG=zombienet=debug cargo run --bin doppelganger
+  ```
+  
+  This will:
+
+- Run doppelganger to sync (warp) kusama to a temp dir with the defaults overrides (2 nodes network)
+- Generate the chain-spec without bootnodes
+- Create a new snapshot to use with the new network in zombienet
+- Spawn the new network and keep it running
+
+
