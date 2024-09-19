@@ -1,10 +1,9 @@
 use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
 
-
 #[derive(Debug, PartialEq)]
 pub enum Context {
     Relaychain,
-    Parachain
+    Parachain,
 }
 
 impl Context {
@@ -26,7 +25,7 @@ pub enum Relaychain {
 
 impl Relaychain {
     pub fn as_local_chain_string(&self) -> String {
-        String::from( match self {
+        String::from(match self {
             Relaychain::Polkadot => "polkadot-local",
             Relaychain::Kusama => "kusama-local",
             Relaychain::Rococo => "rococo-local",
@@ -34,7 +33,7 @@ impl Relaychain {
     }
 
     pub fn as_chain_string(&self) -> String {
-        String::from( match self {
+        String::from(match self {
             Relaychain::Polkadot => "polkadot",
             Relaychain::Kusama => "kusama",
             Relaychain::Rococo => "rococo",
@@ -80,13 +79,11 @@ impl Parachain {
     }
 }
 
-
 // Chain generator command template
 const CMD_TPL: &str = "chain-spec-generator {{chainName}}";
 
 pub const DEFAULT_CHAIN_SPEC_TPL_COMMAND: &str =
     "{{mainCommand}} build-spec --chain {{chainName}} {{disableBootnodes}}";
-
 
 // Relaychain nodes
 const ALICE: &str = "alice";
@@ -94,10 +91,12 @@ const BOB: &str = "bob";
 const CHARLIE: &str = "charlie";
 const DAVE: &str = "dave";
 
-
-pub fn generate_network_config(network: &Relaychain, paras: Vec<Parachain>) -> Result<NetworkConfig, anyhow::Error> {
+pub fn generate_network_config(
+    network: &Relaychain,
+    paras: Vec<Parachain>,
+) -> Result<NetworkConfig, anyhow::Error> {
     println!("paras: {:?}", paras);
-	// TODO: integrate k8s/docker
+    // TODO: integrate k8s/docker
     // let images = environment::get_images_from_env();
     let relay_chain = network.as_local_chain_string();
     let relay_context = Context::Relaychain;
@@ -109,18 +108,16 @@ pub fn generate_network_config(network: &Relaychain, paras: Vec<Parachain>) -> R
         CMD_TPL
     };
 
-	let network_builder = NetworkConfigBuilder::new()
-		.with_relaychain(|r| {
-			r.with_chain(relay_chain.as_str())
-				.with_default_command(relay_context.cmd().as_str())
-				.with_chain_spec_command(chain_spec_cmd)
-				.chain_spec_command_is_local(true)
-				.with_node(|node| node.with_name(ALICE))
-				.with_node(|node| node.with_name(BOB))
-                .with_node(|node| node.with_name(CHARLIE))
-                .with_node(|node| node.with_name(DAVE))
-		});
-
+    let network_builder = NetworkConfigBuilder::new().with_relaychain(|r| {
+        r.with_chain(relay_chain.as_str())
+            .with_default_command(relay_context.cmd().as_str())
+            .with_chain_spec_command(chain_spec_cmd)
+            .chain_spec_command_is_local(true)
+            .with_node(|node| node.with_name(ALICE))
+            .with_node(|node| node.with_name(BOB))
+            .with_node(|node| node.with_name(CHARLIE))
+            .with_node(|node| node.with_name(DAVE))
+    });
 
     let network_builder = paras.iter().fold(network_builder, |builder, para| {
         println!("para: {:?}", para);
@@ -146,14 +143,14 @@ pub fn generate_network_config(network: &Relaychain, paras: Vec<Parachain>) -> R
         })
     });
 
-    let config = network_builder
-    .build()
-    .map_err(|errs| {
-        let e = errs.iter().fold("".to_string(), |memo, err| format!("{memo} \n {err}"));
+    let config = network_builder.build().map_err(|errs| {
+        let e = errs
+            .iter()
+            .fold("".to_string(), |memo, err| format!("{memo} \n {err}"));
         anyhow::anyhow!(e)
     })?;
 
-	Ok(config)
+    Ok(config)
 }
 
 #[cfg(test)]
@@ -168,20 +165,21 @@ mod test {
 
     #[test]
     fn config_with_para_ok() {
-        let config = generate_network_config(&Relaychain::Kusama, vec![Parachain::Coretime]).unwrap();
+        let config =
+            generate_network_config(&Relaychain::Kusama, vec![Parachain::Coretime]).unwrap();
         let parachain = config.parachains().first().unwrap().chain().unwrap();
         assert_eq!(parachain.as_str(), "coretime-kusama-local");
     }
 
     #[tokio::test]
     async fn spec() {
-        let config = generate_network_config(&Relaychain::Kusama, vec![Parachain::AssetHub]).unwrap();
+        let config =
+            generate_network_config(&Relaychain::Kusama, vec![Parachain::AssetHub]).unwrap();
         println!("config: {:#?}", config);
         let spec = zombienet_orchestrator::NetworkSpec::from_config(&config)
-        .await
-        .unwrap();
+            .await
+            .unwrap();
 
-
-        println!("{:#?}",spec);
+        println!("{:#?}", spec);
     }
 }

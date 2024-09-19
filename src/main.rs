@@ -7,6 +7,8 @@ use std::{
 };
 
 use config::Context;
+use futures::future::try_join_all;
+use futures::FutureExt;
 use reqwest::Url;
 use tracing::{debug, trace, warn};
 use zombienet_configuration::types::AssetLocation;
@@ -21,8 +23,6 @@ use zombienet_provider::{
     DynNamespace, DynNode, DynProvider, NativeProvider, Provider,
 };
 use zombienet_support::{fs::local::LocalFileSystem, net::wait_ws_ready};
-use futures::future::try_join_all;
-use futures::FutureExt;
 
 mod utils;
 use utils::get_random_port;
@@ -30,11 +30,15 @@ mod chain_spec_raw;
 mod config;
 
 mod fork_off;
-use fork_off::{ForkOffConfig, fork_off};
+use fork_off::{fork_off, ForkOffConfig};
 
 use crate::fork_off::ParasHeads;
 
-async fn sync_relay_only(ns: DynNamespace, chain: impl AsRef<str>, rpc_random_port: u16) -> Result<(DynNode, String), ()> {
+async fn sync_relay_only(
+    ns: DynNamespace,
+    chain: impl AsRef<str>,
+    rpc_random_port: u16,
+) -> Result<(DynNode, String), ()> {
     let sync_db_path = if chain.as_ref() == "rococo" {
         "/tmp/snaps/rococo-snap/".to_string()
     } else {
@@ -70,10 +74,19 @@ async fn sync_relay_only(ns: DynNamespace, chain: impl AsRef<str>, rpc_random_po
     Ok((sync_node, sync_db_path))
 }
 
-async fn sync_para(ns: DynNamespace, chain: impl AsRef<str>, relaychain: impl AsRef<str>, relaychain_rpc_port: u16) -> Result<(DynNode, String), ()> {
+async fn sync_para(
+    ns: DynNamespace,
+    chain: impl AsRef<str>,
+    relaychain: impl AsRef<str>,
+    relaychain_rpc_port: u16,
+) -> Result<(DynNode, String), ()> {
     let relay_rpc_url = format!("ws://localhost:{relaychain_rpc_port}");
     wait_ws_ready(&relay_rpc_url).await.unwrap();
-    let sync_db_path = format!("{}/paras/{}/sync-db", ns.base_dir().to_string_lossy(), chain.as_ref());
+    let sync_db_path = format!(
+        "{}/paras/{}/sync-db",
+        ns.base_dir().to_string_lossy(),
+        chain.as_ref()
+    );
     let rpc_random_port = get_random_port().await;
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node-para", "polkadot-parachain").args(vec![
@@ -94,7 +107,7 @@ async fn sync_para(ns: DynNamespace, chain: impl AsRef<str>, relaychain: impl As
         relaychain.as_ref(),
     ]);
 
-    println!("{:?}",opts);
+    println!("{:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
@@ -110,11 +123,21 @@ async fn sync_para(ns: DynNamespace, chain: impl AsRef<str>, relaychain: impl As
     Ok((sync_node, sync_db_path))
 }
 
-async fn export_state(sync_node: DynNode, sync_db_path: String, chain: &str, context: Context) -> Result<String, ()> {
+async fn export_state(
+    sync_node: DynNode,
+    sync_db_path: String,
+    chain: &str,
+    context: Context,
+) -> Result<String, ()> {
     let exported_state_file = format!("{sync_db_path}/exported-state.json");
 
-    let cmd_opts =
-        RunCommandOptions::new(context.cmd()).args(vec!["export-state", "--chain", chain, "-d", &sync_db_path]);
+    let cmd_opts = RunCommandOptions::new(context.cmd()).args(vec![
+        "export-state",
+        "--chain",
+        chain,
+        "-d",
+        &sync_db_path,
+    ]);
     debug!("cmd: {:?}", cmd_opts);
     let exported_state_content = sync_node.run_command(cmd_opts).await.unwrap().unwrap();
     tokio::fs::write(&exported_state_file, exported_state_content)
@@ -129,7 +152,7 @@ async fn generate_new_network(
     relay: &config::Relaychain,
     ns: DynNamespace,
     base_dir: impl AsRef<str>,
-    paras: Vec<config::Parachain>
+    paras: Vec<config::Parachain>,
 ) -> Result<NetworkSpec, anyhow::Error> {
     let filesystem = LocalFileSystem;
     let config = config::generate_network_config(relay, paras).unwrap();
@@ -137,7 +160,6 @@ async fn generate_new_network(
         .await
         .unwrap();
     let scoped_fs = ScopedFilesystem::new(&filesystem, base_dir.as_ref());
-
 
     let relaychain_id = {
         let relaychain = spec.relaychain_mut();
@@ -184,7 +206,10 @@ async fn generate_new_network(
     {
         for para in spec.parachains_iter() {
             let para_chain_spec = para.chain_spec().unwrap();
-            para_chain_spec.customize_para(para, &relaychain_id, &scoped_fs).await.unwrap();
+            para_chain_spec
+                .customize_para(para, &relaychain_id, &scoped_fs)
+                .await
+                .unwrap();
         }
     }
 
@@ -228,7 +253,7 @@ async fn bite(
         ),
         simple_governance: false,
         disable_default_bootnodes: true,
-        paras_heads: paras_head
+        paras_heads: paras_head,
     };
     trace!("{:?}", fork_off_config);
     println!("{}", exported_state_file.as_ref());
@@ -258,7 +283,7 @@ async fn spawn_forked_network(
 
         for para in paras.by_ref() {
             let chain_asset_location = paras_forked.next().unwrap();
-            let chain_spec =    para.chain_spec_mut().unwrap();
+            let chain_spec = para.chain_spec_mut().unwrap();
             chain_spec.set_asset_location(AssetLocation::FilePath(chain_asset_location));
         }
     }
@@ -316,13 +341,14 @@ async fn main() {
         );
     }
 
-
     // TODO: move to clap
     let relay_chain = match args[1].as_str() {
-        "polkadot" => {config::Relaychain::Polkadot},
-        "kusama" => {config::Relaychain::Kusama},
-        "rococo" => {config::Relaychain::Rococo},
-        _ => { panic!("Invalid network, should be one of 'polkadot, kusama, rococo'"); }
+        "polkadot" => config::Relaychain::Polkadot,
+        "kusama" => config::Relaychain::Kusama,
+        "rococo" => config::Relaychain::Rococo,
+        _ => {
+            panic!("Invalid network, should be one of 'polkadot, kusama, rococo'");
+        }
     };
 
     // TODO: support multiple paras
@@ -336,14 +362,12 @@ async fn main() {
                 _ => {
                     warn!("Invalid para {para}, skipping...");
                 }
-             }
+            }
         }
         paras_to
     } else {
         vec![]
     };
-
-
 
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
@@ -355,21 +379,28 @@ async fn main() {
         .unwrap();
 
     let relaychain_rpc_random_port = get_random_port().await;
-    let mut syncs = vec![
-        sync_relay_only(ns.clone(), relay_chain.as_chain_string(), relaychain_rpc_random_port).boxed()
-    ];
+    let mut syncs = vec![sync_relay_only(
+        ns.clone(),
+        relay_chain.as_chain_string(),
+        relaychain_rpc_random_port,
+    )
+    .boxed()];
     for para in &paras_to {
         syncs.push(
             sync_para(
-                ns.clone(), para.as_chain_string(&relay_chain.as_chain_string()), relay_chain.as_chain_string(), relaychain_rpc_random_port
-            ).boxed()
+                ns.clone(),
+                para.as_chain_string(&relay_chain.as_chain_string()),
+                relay_chain.as_chain_string(),
+                relaychain_rpc_random_port,
+            )
+            .boxed(),
         );
     }
 
     // syncs.push(sync_relay_only(ns.clone(), relay_chain.as_chain_string(), relaychain_rpc_random_port));
     let res = try_join_all(syncs).await.unwrap();
     let mut res_iter = res.into_iter();
-    let (sync_node,sync_db_path) = res_iter.next().unwrap();
+    let (sync_node, sync_db_path) = res_iter.next().unwrap();
     // stop relay node
     sync_node.destroy().await.unwrap();
 
@@ -378,12 +409,25 @@ async fn main() {
     for para in &paras_to {
         // export para state
         let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
-        let para_exported_state_filepath = export_state(para_sync_node, para_sync_db_path, &para.as_chain_string(&relay_chain.as_chain_string()), Context::Parachain).await.unwrap();
+        let para_exported_state_filepath = export_state(
+            para_sync_node,
+            para_sync_db_path,
+            &para.as_chain_string(&relay_chain.as_chain_string()),
+            Context::Parachain,
+        )
+        .await
+        .unwrap();
         paras_exported_state_paths.push(para_exported_state_filepath);
     }
 
-
-    let exported_state_filepath = export_state(sync_node, sync_db_path, &relay_chain.as_chain_string(), Context::Relaychain).await.unwrap();
+    let exported_state_filepath = export_state(
+        sync_node,
+        sync_db_path,
+        &relay_chain.as_chain_string(),
+        Context::Relaychain,
+    )
+    .await
+    .unwrap();
 
     let mut spec = generate_new_network(&relay_chain, ns.clone(), &base_dir_str, paras_to.clone())
         .await
@@ -397,15 +441,22 @@ async fn main() {
 
     for para in &paras_to {
         let para_spec = paras_iter.next().unwrap();
-        let para_raw_generated_path = para_spec.chain_spec().unwrap().raw_path().unwrap().to_string_lossy();
+        let para_raw_generated_path = para_spec
+            .chain_spec()
+            .unwrap()
+            .raw_path()
+            .unwrap()
+            .to_string_lossy();
         // bite para
         let para_forked_path = bite(
             &base_dir_str,
             para_raw_generated_path,
             paras_exported_state_iter.next().unwrap(),
             para.context(),
-            Default::default()
-        ).await.unwrap();
+            Default::default(),
+        )
+        .await
+        .unwrap();
 
         paras_forked_off_paths.push(para_forked_path.clone());
 
@@ -424,8 +475,8 @@ async fn main() {
         relaychain_spec.read_chain_id(&scoped_fs).await.unwrap()
     };
     spec.build_parachain_artifacts(ns.clone(), &scoped_fs, &relaychain_id, true)
-    .await
-    .unwrap();
+        .await
+        .unwrap();
 
     for para in spec.parachains_iter() {
         let id = para.id();
@@ -451,9 +502,14 @@ async fn main() {
     .await
     .unwrap();
 
-    let _network = spawn_forked_network(provider.clone(), spec, forked_filepath, paras_forked_off_paths)
-        .await
-        .unwrap();
+    let _network = spawn_forked_network(
+        provider.clone(),
+        spec,
+        forked_filepath,
+        paras_forked_off_paths,
+    )
+    .await
+    .unwrap();
 
     println!("looping...");
 
