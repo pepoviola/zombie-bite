@@ -279,15 +279,7 @@ impl From<u32> for ParaId {
 pub struct Bl(pub u32);
 
 /// Parachain head data included in the chain.
-#[derive(
-    PartialEq,
-    Eq,
-    Clone,
-    PartialOrd,
-    Ord,
-    Encode,
-    Decode,
-)]
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
 pub struct HeadData(pub Vec<u8>);
 
 #[cfg(test)]
@@ -307,7 +299,6 @@ mod test {
             substorager::storage_value_key(&b"Paras"[..], b"Heads"),
         );
         assert_eq!(paras_head_prefix, paras_head_prefix_gen.as_str());
-
     }
 
     #[test]
@@ -429,7 +420,6 @@ mod test {
         let h = HeadData(c).encode();
         println!("{}", array_bytes::bytes2hex("0x", &h));
     }
-
 
     #[ignore = "test file needed"]
     #[tokio::test]

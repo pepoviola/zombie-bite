@@ -52,7 +52,9 @@ async fn main() {
     let snap_path = format!("{}/snap.tgz", &base_dir_str);
     generate_snap(&base_dir_str, &snap_path).await.unwrap();
 
-    let _network = spawn(provider, &chain_spec_path, &snap_path).await.expect("Fail to spawn the new network");
+    let _network = spawn(provider, &chain_spec_path, &snap_path)
+        .await
+        .expect("Fail to spawn the new network");
     println!("🚀🚀🚀🚀 network deployed");
 
     // For now let just loop....
@@ -76,8 +78,7 @@ async fn spawn(
                 .with_default_args(vec![
                     ("-l", leaked_rust_log.as_str()).into(),
                     ("--force-authoring".into()),
-                    ])
-
+                ])
                 .with_node(|node| node.with_name("alice"))
                 .with_node(|node| node.with_name("bob"))
         })
@@ -112,7 +113,7 @@ async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str) -> Result<
     let temp_node = ns
         .spawn_node(
             &SpawnNodeOptions::new("temp-polkadot", "bash")
-                .args(vec!["-c", "while :; do sleep 60; done"])
+                .args(vec!["-c", "while :; do sleep 60; done"]),
         )
         .await
         .unwrap();
@@ -158,16 +159,17 @@ async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(),
 
     let _stdout = temp_node
         .run_command(
-            RunCommandOptions::new("bash").args(vec![
-                "-c",
-                format!(
-                    "doppelganger --chain kusama --sync warp -d {} > {} 2>&1",
-                    &data_path, &logs_path
-                )
-                .as_str(),
-            ])
-            // Override rust log for sync
-            .env(vec![("RUST_LOG", "").into()]),
+            RunCommandOptions::new("bash")
+                .args(vec![
+                    "-c",
+                    format!(
+                        "doppelganger --chain kusama --sync warp -d {} > {} 2>&1",
+                        &data_path, &logs_path
+                    )
+                    .as_str(),
+                ])
+                // Override rust log for sync
+                .env(vec![("RUST_LOG", "").into()]),
         )
         .await
         .unwrap();
