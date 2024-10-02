@@ -52,23 +52,7 @@ async fn main() {
     let snap_path = format!("{}/snap.tgz", &base_dir_str);
     generate_snap(&base_dir_str, &snap_path).await.unwrap();
 
-    // config a new network with alice/bob
-    let config = NetworkConfigBuilder::new()
-        .with_relaychain(|r| {
-            r.with_chain("kusama")
-                .with_default_command("polkadot")
-                .with_chain_spec_path(PathBuf::from(&chain_spec_path))
-                .with_default_db_snapshot(PathBuf::from(&snap_path))
-                .with_node(|node| node.with_name("alice"))
-                .with_node(|node| node.with_name("bob"))
-        })
-        .build()
-        .unwrap();
-
-    // spawn the network
-    let orchestrator = Orchestrator::new(filesystem, provider);
-    let _network = orchestrator.spawn(config).await.unwrap();
-
+    let _network = spawn(provider, &chain_spec_path, &snap_path).await.expect("Fail to spawn the new network");
     println!("🚀🚀🚀🚀 network deployed");
 
     // For now let just loop....
@@ -81,6 +65,7 @@ async fn spawn(
     chain_spec_path: &str,
     snap_path: &str,
 ) -> Result<Network<LocalFileSystem>, String> {
+    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=trace,grandpa=trace,runtime=debug,consensus::common=trace,parachain=debug,sync=debug"));
     // config a new network with alice/bob
     let config = NetworkConfigBuilder::new()
         .with_relaychain(|r| {
@@ -88,6 +73,11 @@ async fn spawn(
                 .with_default_command("polkadot")
                 .with_chain_spec_path(PathBuf::from(&chain_spec_path))
                 .with_default_db_snapshot(PathBuf::from(&snap_path))
+                .with_default_args(vec![
+                    ("-l", leaked_rust_log.as_str()).into(),
+                    ("--force-authoring".into()),
+                    ])
+
                 .with_node(|node| node.with_name("alice"))
                 .with_node(|node| node.with_name("bob"))
         })
@@ -100,6 +90,7 @@ async fn spawn(
     let network = orchestrator.spawn(config).await.unwrap();
     Ok(network)
 }
+
 async fn generate_snap(base_dir: &str, snap_path: &str) -> Result<(), String> {
     println!("\n📝 Generating snapshot");
 
@@ -121,7 +112,7 @@ async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str) -> Result<
     let temp_node = ns
         .spawn_node(
             &SpawnNodeOptions::new("temp-polkadot", "bash")
-                .args(vec!["-c", "while :; do sleep 60; done"]),
+                .args(vec!["-c", "while :; do sleep 60; done"])
         )
         .await
         .unwrap();
@@ -174,7 +165,9 @@ async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(),
                     &data_path, &logs_path
                 )
                 .as_str(),
-            ]),
+            ])
+            // Override rust log for sync
+            .env(vec![("RUST_LOG", "").into()]),
         )
         .await
         .unwrap();
@@ -197,6 +190,7 @@ fn get_epoch_ms() -> u128 {
 mod test {
     use super::*;
 
+    #[ignore = "Internal test, require some artifacts"]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_snap() {
         let snap_path = "/tmp/zombie-bite_1726677980197/snap.tgz";
@@ -207,6 +201,7 @@ mod test {
         // let _n = spawn(provider, chain_spec_path, snap_path).await.unwrap();
     }
 
+    #[ignore = "Internal test, require some artifacts"]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_spawn() {
         let filesystem = LocalFileSystem;

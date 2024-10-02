@@ -13,8 +13,6 @@ zombienet-configuration = "0.2.9"
 tokio = "1"
 reqwest = "0.12"
 tracing-subscriber = "0.3.18"
-# TODO: extract and refactor only the needed logic
-# subalfred-core = "0"
 anyhow = "1.0"
 tracing = "0.1"
 fxhash = "0.2"
@@ -38,7 +36,7 @@ path = "src/doppelganger.rs"
 # name = "regular"
 # path = "src/regular.rs"
 
-[patch.crates-io]
+# [patch.crates-io]
 # zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
 # zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
 # zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }

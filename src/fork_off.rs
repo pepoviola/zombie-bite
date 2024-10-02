@@ -156,8 +156,8 @@ fn clear_consensus(chain_spec: &mut ChainSpec, paras_heads: ParasHeads) {
         );
         let para_head =
             array_bytes::bytes2hex("0x", HeadData(hex::decode(&head[2..]).unwrap()).encode());
-        println!("key: {key}");
-        println!("key: {para_head}");
+        debug!("key: {key}");
+        debug!("value: {para_head}");
 
         top.insert(key, para_head);
     }
@@ -235,6 +235,7 @@ pub(super) fn set_simple_governance(chain_spec: &mut ChainSpec) {
 }
 
 use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
+use tracing::debug;
 /// Parachain id.
 ///
 /// This is an equivalent of the `polkadot_parachain_primitives::Id`, which is a compact-encoded
@@ -286,11 +287,6 @@ pub struct Bl(pub u32);
     Ord,
     Encode,
     Decode,
-    // RuntimeDebug,
-    // derive_more::From,
-    // TypeInfo,
-    // Serialize,
-    // Deserialize,
 )]
 pub struct HeadData(pub Vec<u8>);
 
@@ -312,17 +308,6 @@ mod test {
         );
         assert_eq!(paras_head_prefix, paras_head_prefix_gen.as_str());
 
-        // let paras_head_prefix = "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3";
-        // let paras_head_prefix_gen = array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Paras"[..], b"MostRecentContext"));
-        // assert_eq!(paras_head_prefix, paras_head_prefix_gen.as_str());
-
-        // let inv = "0x15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a";
-        // let inv_gen = array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"CollatorSelection"[..], b"Invulnerables"));
-        // assert_eq!(inv, inv_gen.as_str());
-
-        // let inv_3 = array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Paras"[..], b"CodeByHash"));
-        // let inv = "0x15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a";
-        // assert_eq!(inv, inv_3.as_str());
     }
 
     #[test]
@@ -402,6 +387,22 @@ mod test {
             )
         );
 
+        println!(
+            "Staking_Invulnerables {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Staking"[..], b"Invulnerables")
+            )
+        );
+
+        println!(
+            "Staking_Nominators {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Staking"[..], b"Nominators")
+            )
+        );
+
         println!("prefix: {prefix}");
         println!("invulnerables: {inv}");
     }
@@ -419,8 +420,6 @@ mod test {
 
     #[test]
     fn block() {
-        // let b = hex::decode("4c3e7201").unwrap();
-        // let z: u32 = Vec<u8>::decode(b);// b.decode();
         let z = Bl(24264268).encode();
         println!("{}", array_bytes::bytes2hex("0x", &z));
 
@@ -431,23 +430,6 @@ mod test {
         println!("{}", array_bytes::bytes2hex("0x", &h));
     }
 
-    #[test]
-    fn vec_to_str() {
-        let v = [
-            48, 120, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
-            48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
-            48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48, 48,
-            48, 48, 48, 49, 48, 52, 56, 56, 51, 102, 100, 51, 97, 48, 53, 50, 48, 51, 100, 48, 52,
-            49, 100, 97, 50, 97, 50, 54, 56, 52, 56, 55, 98, 49, 51, 52, 49, 50, 102, 53, 48, 102,
-            56, 56, 53, 57, 97, 57, 100, 97, 102, 52, 97, 101, 56, 55, 55, 54, 50, 54, 97, 54, 57,
-            100, 101, 97, 100, 48, 51, 49, 55, 48, 97, 50, 101, 55, 53, 57, 55, 98, 55, 98, 55,
-            101, 51, 100, 56, 52, 99, 48, 53, 51, 57, 49, 100, 49, 51, 57, 97, 54, 50, 98, 49, 53,
-            55, 101, 55, 56, 55, 56, 54, 100, 56, 99, 48, 56, 50, 102, 50, 57, 100, 99, 102, 52,
-            99, 49, 49, 49, 51, 49, 52, 48, 48,
-        ];
-        let s = String::from_utf8_lossy(&v);
-        println!("{s}");
-    }
 
     #[ignore = "test file needed"]
     #[tokio::test]
