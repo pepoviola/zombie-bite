@@ -49,7 +49,7 @@ cargo run -- kusama asset-hub
 ---
 
 ### Steps for doppelganger :
-  
+
 Compile the node using [this branch](https://github.com/paritytech/polkadot-sdk/tree/jv-doppelganger-node) from the polkadot-sdk repo
 
 ```
@@ -58,15 +58,21 @@ cargo build -p polkadot-doppelganger-node --release
 
 Make polkadot binaries (polkadot and workers) and doppelganger available in your PATH, then run with:
 
-  ``` 
+  ```
   RUST_LOG=zombienet=debug cargo run --bin doppelganger
   ```
-  
-  This will:
+
+This will:
 
 - Run doppelganger to sync (warp) kusama to a temp dir with the defaults overrides (2 nodes network)
 - Generate the chain-spec without bootnodes
 - Create a new snapshot to use with the new network in zombienet
 - Spawn the new network and keep it running
 
+
+_Log level for nodes_: By default the nodes are spawned with this log leves:
+```
+babe=trace,grandpa=trace,runtime=debug,consensus::common=trace,parachain=debug,sync=debug
+```
+_but_ you can override those by setting the `RUST_LOG` env, since the script will inject that env into the spawning logic.
 
