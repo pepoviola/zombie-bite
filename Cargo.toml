@@ -6,6 +6,7 @@ default-run = "zombie-bite"
 
 
 [dependencies]
+zombienet-sdk = "0.2.9"
 zombienet-provider = "0.2.9"
 zombienet-orchestrator = "0.2.9"
 zombienet-support = "0.2.9"
@@ -27,14 +28,15 @@ hex = "0.4"
 scale-value = "0.16"
 tar = "0.4"
 flate2 = "1.0"
+sp-core = "34.0.0"
 
 [[bin]]
 name = "doppelganger"
 path = "src/doppelganger.rs"
 
-# [[bin]]
-# name = "regular"
-# path = "src/regular.rs"
+[[bin]]
+name = "regular"
+path = "src/regular.rs"
 
 # [patch.crates-io]
 # zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }

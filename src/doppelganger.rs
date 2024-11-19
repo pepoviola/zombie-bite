@@ -1,13 +1,18 @@
+
+use std::env;
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use futures::future::try_join_all;
+use futures::FutureExt;
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use tar::Builder;
+use codec::Encode;
 
 use zombienet_configuration::NetworkConfigBuilder;
 use zombienet_orchestrator::network::Network;
@@ -20,12 +25,36 @@ use zombienet_provider::NativeProvider;
 use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
+use utils::{para_head_key, HeadData};
+
+mod sync;
+mod cli;
+mod utils;
+mod config;
+
+use crate::utils::get_random_port;
+use crate::sync::{sync_para, sync_relay_only};
+use config::Context;
+
+
+
+#[derive(Debug, Clone)]
+struct ChainArtifact {
+    cmd: String,
+    chain: String,
+    spec_path: String,
+    snap_path: String,
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
+    let args: Vec<_> = env::args().collect();
+    let (relay_chain, paras_to) = cli::parse(args);
+
     // Star the node and wait until finish (with temp dir managed by us)
-    println!("\n🪞 Starting DoppelGanger process for Kusama");
+    println!("\n🪞 Starting DoppelGanger process for {} and {:?}", relay_chain.as_chain_string(), paras_to);
 
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
@@ -38,21 +67,89 @@ async fn main() {
         .await
         .unwrap();
 
-    let _stdout = run_doppelganger_node(ns.clone(), &fixed_base_dir)
-        .await
-        .unwrap();
+    let relaychain_rpc_random_port = get_random_port().await;
+
+    // Parachain sync
+    let mut syncs = vec![];
+    for para in &paras_to {
+        syncs.push(
+            sync_para(
+                ns.clone(),
+                "doppelganger-parachain",
+                para.as_chain_string(&relay_chain.as_chain_string()),
+                relay_chain.as_chain_string(),
+                relaychain_rpc_random_port,
+            )
+            .boxed(),
+        );
+    }
+
+    println!("Sync len {}", syncs.len());
+    let res = try_join_all(syncs).await.unwrap();
+
+
+     // loop over paras
+     let mut para_artifacts = vec![];
+     let mut para_heads_env = vec![];
+     let context_para = Context::Parachain;
+     for (para_index, (sync_node, sync_db_path, sync_chain)) in res.into_iter().enumerate() {
+        let chain_spec_path = format!("{}/{}-spec.json", &base_dir_str, &sync_chain);
+        generate_chain_spec(ns.clone(), &chain_spec_path, &context_para.cmd(), &sync_chain)
+            .await
+            .unwrap();
+
+        // generate the data.tgz to use as snapshot
+        let snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain);
+        generate_snap(&sync_db_path, &snap_path).await.unwrap();
+
+        // real last log line to get the para_head
+        let logs = sync_node.logs().await.expect("read logs from node should work");
+        let para_head_str = logs.lines().last().expect("last line should be valid.").to_string();
+        let para_head = array_bytes::bytes2hex("0x", HeadData(hex::decode(&para_head_str[2..]).unwrap()).encode());
+
+        let para = paras_to.get(para_index).expect("index should be valid");
+        para_heads_env.push(
+            (
+                format!("ZOMBIE_{}", &para_head_key(para.id())[2..]),
+                format!("{}", &para_head[2..])
+            )
+        );
+        para_artifacts.push(ChainArtifact { cmd:context_para.cmd(), chain: sync_chain, spec_path: chain_spec_path, snap_path: snap_path });
+     }
+
+
+    // RELAYCHAIN sync
+    let (sync_node, sync_db_path, sync_chain) = sync_relay_only(
+        ns.clone(),
+        "doppelganger",
+        relay_chain.as_chain_string(),
+        para_heads_env
+    ).await.unwrap();
+
+    // stop relay node
+    sync_node.destroy().await.unwrap();
+
 
     // get the chain-spec (prod) and clean the bootnodes
-    let chain_spec_path = format!("{}/spec.json", &base_dir_str);
-    generate_chain_spec(ns.clone(), &chain_spec_path)
+    // relaychain
+    let context_relay = Context::Relaychain;
+    let r_chain_spec_path = format!("{}/{}-spec.json", &base_dir_str, &sync_chain);
+    generate_chain_spec(ns.clone(), &r_chain_spec_path, &context_relay.cmd(), &sync_chain)
         .await
         .unwrap();
 
-    // generate the data.tgz to use as snapshot
-    let snap_path = format!("{}/snap.tgz", &base_dir_str);
-    generate_snap(&base_dir_str, &snap_path).await.unwrap();
+    // remove `parachains` db
+    let parachains_path = format!("{sync_db_path}/chains/{sync_chain}/db/full/parachains");
+    println!("Deleting `parachains` db at {parachains_path}");
+    tokio::fs::remove_dir_all(parachains_path).await.expect("remove parachains db should work");
 
-    let _network = spawn(provider, &chain_spec_path, &snap_path)
+    // generate the data.tgz to use as snapshot
+    let r_snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain);
+    generate_snap(&sync_db_path, &r_snap_path).await.unwrap();
+
+    let relay_artifacts = ChainArtifact { cmd: context_relay.cmd(), chain: sync_chain, spec_path: r_chain_spec_path, snap_path: r_snap_path };
+
+    let _network = spawn(provider, relay_artifacts, para_artifacts)
         .await
         .expect("Fail to spawn the new network");
     println!("🚀🚀🚀🚀 network deployed");
@@ -64,40 +161,100 @@ async fn main() {
 
 async fn spawn(
     provider: DynProvider,
-    chain_spec_path: &str,
-    snap_path: &str,
+    relaychain: ChainArtifact,
+    paras: Vec<ChainArtifact>,
 ) -> Result<Network<LocalFileSystem>, String> {
-    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=trace,grandpa=trace,runtime=debug,consensus::common=trace,parachain=debug,sync=debug"));
+    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=debug,grandpa=debug,runtime=debug,consensus::common=trace,parachain=debug,sync=debug,sub-authority-discovery=trace"));
+    let rpc_port = get_random_port().await;
     // config a new network with alice/bob
-    let config = NetworkConfigBuilder::new()
+    let mut config = NetworkConfigBuilder::new()
         .with_relaychain(|r| {
-            r.with_chain("kusama")
-                .with_default_command("polkadot")
-                .with_chain_spec_path(PathBuf::from(&chain_spec_path))
-                .with_default_db_snapshot(PathBuf::from(&snap_path))
+            r.with_chain(relaychain.chain.as_str())
+                .with_default_command(relaychain.cmd.as_str())
+                .with_chain_spec_path(PathBuf::from(relaychain.spec_path.as_str()))
+                .with_default_db_snapshot(PathBuf::from(relaychain.snap_path.as_str()))
                 .with_default_args(vec![
                     ("-l", leaked_rust_log.as_str()).into(),
-                    ("--force-authoring".into()),
+                    // ("--force-authoring".into()),
+                    "--discover-local".into(),
+                    "--allow-private-ip".into()
                 ])
-                .with_node(|node| node.with_name("alice"))
+                .with_node(|node|
+                    node
+                        .with_name("alice")
+                        .with_rpc_port(rpc_port)
+                    )
                 .with_node(|node| node.with_name("bob"))
-        })
-        .build()
-        .unwrap();
+                .with_node(|node| node.with_name("charlie"))
+                .with_node(|node| node.with_name("dave"))
+        });
+    if !paras.is_empty() {
+        // TODO: enable for multiple paras
+        // let validation_context = Rc::new(RefCell::new(ValidationContext::default()));
+        for para in paras {
+            // TODO: enable for multiple paras
+            // let builder = ParachainConfigBuilder::new(validation_context);
+            // let para_config = builder.with_id(1000)
+            // .with_chain(para.chain.as_str())
+            // .with_default_command(para.cmd.as_str())
+            // .with_chain_spec_path(PathBuf::from(para.spec_path.as_str()))
+            // .with_default_db_snapshot(PathBuf::from(para.snap_path.as_str()))
+            // .with_collator(|c| c.with_name("col-1000"));
+
+            config = config.with_parachain(|p|{
+                p.with_id(1000)
+                .with_chain(para.chain.as_str())
+                .with_default_command(para.cmd.as_str())
+                .with_chain_spec_path(PathBuf::from(para.spec_path.as_str()))
+                .with_default_db_snapshot(PathBuf::from(para.snap_path.as_str()))
+                .with_collator(|c|
+                    c
+                        .with_name("collator")
+                        .with_args(vec![
+                            ("--relay-chain-rpc-urls", format!("ws://127.0.0.1:{rpc_port}").as_str()).into(),
+                            ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,sub-authority-discovery=trace").into(),
+                            "--force-authoring".into(),
+                            "--discover-local".into(),
+                            "--allow-private-ip".into()
+                        ])
+                )
+            })
+        }
+    }
+
+    let network_config = config.build().unwrap();
 
     // spawn the network
     let filesystem = LocalFileSystem;
     let orchestrator = Orchestrator::new(filesystem, provider);
-    let network = orchestrator.spawn(config).await.unwrap();
+    let toml_config = network_config.dump_to_toml().unwrap();
+
+    let network = orchestrator.spawn(network_config).await.unwrap();
+    // dump config
+
+    let config_toml_path = format!("{}/config.toml",network.base_dir().unwrap());
+    _ = tokio::fs::write(config_toml_path, toml_config).await.unwrap();
+
     Ok(network)
 }
 
-async fn generate_snap(base_dir: &str, snap_path: &str) -> Result<(), String> {
-    println!("\n📝 Generating snapshot");
+// TODO: enable for multiple paras
+// fn add_para(config: NetworkConfigBuilder<WithRelaychain>, para: ChainArtifact) -> NetworkConfigBuilder<WithRelaychain> {
+//     let c = config.with_parachain(|p| {
+//         p.with_id(1000)
+//         .with_chain(para.chain.as_str())
+//         .with_default_command(para.cmd.as_str())
+//         .with_chain_spec_path(PathBuf::from(para.spec_path.as_str()))
+//         .with_default_db_snapshot(PathBuf::from(para.snap_path.as_str()))
+//         .with_collator(|c| c.with_name("col-1000"))
+//     });
+// }
+
+async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), String> {
+    println!("\n📝 Generating snapshot file {snap_path} with data_path {data_path}...");
 
     let compressed_file = File::create(&snap_path).unwrap();
     let mut encoder = GzEncoder::new(compressed_file, Compression::fast());
-    let data_path = format!("{}/sync_db", &base_dir);
 
     let mut archive = Builder::new(&mut encoder);
     archive.append_dir_all("data", &data_path).unwrap();
@@ -107,8 +264,8 @@ async fn generate_snap(base_dir: &str, snap_path: &str) -> Result<(), String> {
     Ok(())
 }
 
-async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str) -> Result<(), String> {
-    println!("\n📝 Generating chain-spec without bootnodes...");
+async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str, cmd: &str, chain: &str) -> Result<(), String> {
+    println!("\n📝 Generating chain-spec file {chain_spec_path} using cmd {cmd} with chain {chain} without bootnodes...");
 
     let temp_node = ns
         .spawn_node(
@@ -119,10 +276,10 @@ async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str) -> Result<
         .unwrap();
 
     let cmd_stdout = temp_node
-        .run_command(RunCommandOptions::new("polkadot").args(vec![
+        .run_command(RunCommandOptions::new(cmd).args(vec![
             "build-spec",
             "--chain",
-            "kusama",
+            chain,
         ]))
         .await
         .unwrap()
@@ -163,7 +320,7 @@ async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(),
                 .args(vec![
                     "-c",
                     format!(
-                        "doppelganger --chain kusama --sync warp -d {} > {} 2>&1",
+                        "doppelganger -l doppelganger=debug --chain kusama --sync warp -d {} > {} 2>&1",
                         &data_path, &logs_path
                     )
                     .as_str(),
@@ -172,6 +329,7 @@ async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(),
                 .env(vec![("RUST_LOG", "").into()]),
         )
         .await
+        .unwrap()
         .unwrap();
 
     temp_node.destroy().await.unwrap();
@@ -208,8 +366,24 @@ mod test {
     async fn test_spawn() {
         let filesystem = LocalFileSystem;
         let provider = NativeProvider::new(filesystem.clone());
-        let chain_spec_path = "/tmp/zombie-bite_1726677980197/spec.json";
-        let snap_path = "/tmp/zombie-bite_1726677980197/snap.tgz";
-        let _n = spawn(provider, chain_spec_path, snap_path).await.unwrap();
+        let r = ChainArtifact {
+            cmd: "polkadot".into(),
+            chain: "polkadot".into(),
+            spec_path: "/tmp/zombie-bite_1730630215147/polkadot-spec.json".into(),
+            snap_path: "/tmp/zombie-bite_1730630215147/polkadot-snap.tgz".into()
+        };
+
+        let p = ChainArtifact {
+            cmd: "polkadot-parachain".into(),
+            chain: "asset-hub-polkadot".into(),
+            spec_path: "/tmp/zombie-bite_1730630215147/asset-hub-polkadot-spec.json".into(),
+            snap_path: "/tmp/zombie-bite_1730630215147/asset-hub-polkadot-snap.tgz".into()
+        };
+
+         let n = spawn(provider, r, vec![p]).await.unwrap();
+         println!("{:?}", n);
+         loop {
+
+         }
     }
 }

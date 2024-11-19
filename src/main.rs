@@ -22,12 +22,15 @@ use zombienet_provider::{
     types::{RunCommandOptions, SpawnNodeOptions},
     DynNamespace, DynNode, DynProvider, NativeProvider, Provider,
 };
-use zombienet_support::{fs::local::LocalFileSystem, net::wait_ws_ready};
+use zombienet_support::net::wait_ws_ready;
+use zombienet_sdk::LocalFileSystem;
 
 mod utils;
 use utils::get_random_port;
 mod chain_spec_raw;
 mod config;
+mod sync;
+mod cli;
 
 mod fork_off;
 use fork_off::{fork_off, ForkOffConfig};
@@ -80,6 +83,7 @@ async fn sync_para(
     relaychain: impl AsRef<str>,
     relaychain_rpc_port: u16,
 ) -> Result<(DynNode, String), ()> {
+    println!("pase!");
     let relay_rpc_url = format!("ws://localhost:{relaychain_rpc_port}");
     wait_ws_ready(&relay_rpc_url).await.unwrap();
     let sync_db_path = format!(
@@ -341,34 +345,9 @@ async fn main() {
         );
     }
 
-    // TODO: move to clap
-    let relay_chain = match args[1].as_str() {
-        "polkadot" => config::Relaychain::Polkadot,
-        "kusama" => config::Relaychain::Kusama,
-        "rococo" => config::Relaychain::Rococo,
-        _ => {
-            panic!("Invalid network, should be one of 'polkadot, kusama, rococo'");
-        }
-    };
+    let (relay_chain, paras_to) = cli::parse(args);
 
-    // TODO: support multiple paras
-    let paras_to: Vec<config::Parachain> = if let Some(paras_to_fork) = args.get(2) {
-        let mut paras_to = vec![];
-        for para in paras_to_fork.trim().split(',').into_iter() {
-            match para {
-                "asset-hub" => paras_to.push(config::Parachain::AssetHub),
-                "coretime" => paras_to.push(config::Parachain::Coretime),
-                "people" => paras_to.push(config::Parachain::People),
-                _ => {
-                    warn!("Invalid para {para}, skipping...");
-                }
-            }
-        }
-        paras_to
-    } else {
-        vec![]
-    };
-
+    println!("{:?}",paras_to);
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
     let fixed_base_dir = PathBuf::from_str("/tmp/z").unwrap();
