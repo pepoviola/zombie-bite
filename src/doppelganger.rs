@@ -14,6 +14,8 @@ use flate2::Compression;
 use tar::Builder;
 use codec::Encode;
 
+use tracing::debug;
+use tracing::info;
 use zombienet_configuration::NetworkConfigBuilder;
 use zombienet_orchestrator::network::Network;
 use zombienet_orchestrator::Orchestrator;
@@ -54,7 +56,7 @@ async fn main() {
     let (relay_chain, paras_to) = cli::parse(args);
 
     // Star the node and wait until finish (with temp dir managed by us)
-    println!("\n🪞 Starting DoppelGanger process for {} and {:?}", relay_chain.as_chain_string(), paras_to);
+    info!("🪞 Starting DoppelGanger process for {} and {:?}", relay_chain.as_chain_string(), paras_to);
 
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
@@ -84,7 +86,6 @@ async fn main() {
         );
     }
 
-    println!("Sync len {}", syncs.len());
     let res = try_join_all(syncs).await.unwrap();
 
 
@@ -140,7 +141,7 @@ async fn main() {
 
     // remove `parachains` db
     let parachains_path = format!("{sync_db_path}/chains/{sync_chain}/db/full/parachains");
-    println!("Deleting `parachains` db at {parachains_path}");
+    debug!("Deleting `parachains` db at {parachains_path}");
     tokio::fs::remove_dir_all(parachains_path).await.expect("remove parachains db should work");
 
     // generate the data.tgz to use as snapshot
@@ -152,7 +153,7 @@ async fn main() {
     let _network = spawn(provider, relay_artifacts, para_artifacts)
         .await
         .expect("Fail to spawn the new network");
-    println!("🚀🚀🚀🚀 network deployed");
+    info!("🚀🚀🚀🚀 network deployed");
 
     // For now let just loop....
     #[allow(clippy::empty_loop)]
@@ -251,7 +252,7 @@ async fn spawn(
 // }
 
 async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), String> {
-    println!("\n📝 Generating snapshot file {snap_path} with data_path {data_path}...");
+    info!("\n📝 Generating snapshot file {snap_path} with data_path {data_path}...");
 
     let compressed_file = File::create(&snap_path).unwrap();
     let mut encoder = GzEncoder::new(compressed_file, Compression::fast());
@@ -260,12 +261,12 @@ async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), String> {
     archive.append_dir_all("data", &data_path).unwrap();
     archive.finish().unwrap();
 
-    println!("✅ generated with path {snap_path}");
+    info!("✅ generated with path {snap_path}");
     Ok(())
 }
 
 async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str, cmd: &str, chain: &str) -> Result<(), String> {
-    println!("\n📝 Generating chain-spec file {chain_spec_path} using cmd {cmd} with chain {chain} without bootnodes...");
+    info!("\n📝 Generating chain-spec file {chain_spec_path} using cmd {cmd} with chain {chain} without bootnodes...");
 
     let temp_node = ns
         .spawn_node(
@@ -292,7 +293,7 @@ async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str, cmd: &str,
     let contents = serde_json::to_string_pretty(&chain_spec_json).unwrap();
 
     tokio::fs::write(&chain_spec_path, contents).await.unwrap();
-    println!("✅ generated with path {chain_spec_path}");
+    info!("✅ generated with path {chain_spec_path}");
 
     Ok(())
 }
@@ -300,7 +301,7 @@ async fn generate_chain_spec(ns: DynNamespace, chain_spec_path: &str, cmd: &str,
 async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(), String> {
     let data_path = format!("{}/sync_db", &base_path.to_string_lossy());
     let logs_path = format!("{}/sync.log", &base_path.to_string_lossy());
-    println!(
+    info!(
         "⛓  Syncing using warp, this could take a while. You can follow the logs with: \n\t
     tail -f {}",
         &logs_path
@@ -334,7 +335,7 @@ async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(),
 
     temp_node.destroy().await.unwrap();
 
-    println!("✅ Synced");
+    info!("✅ Synced");
 
     Ok(())
 }

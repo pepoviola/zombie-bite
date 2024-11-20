@@ -10,7 +10,7 @@ use config::Context;
 use futures::future::try_join_all;
 use futures::FutureExt;
 use reqwest::Url;
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 use zombienet_configuration::types::AssetLocation;
 use zombienet_orchestrator::Orchestrator;
 use zombienet_orchestrator::{
@@ -66,12 +66,12 @@ async fn sync_relay_only(
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
     debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    println!("sync node logs: {}", sync_node.log_cmd());
+    info!("sync node logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
     wait_sync(url).await.unwrap();
-    println!("sync ok!, stopping node");
+    info!("sync ok!, stopping node");
     // we should just paused
     // sync_node.destroy().await.unwrap();
     Ok((sync_node, sync_db_path))
@@ -83,7 +83,6 @@ async fn sync_para(
     relaychain: impl AsRef<str>,
     relaychain_rpc_port: u16,
 ) -> Result<(DynNode, String), ()> {
-    println!("pase!");
     let relay_rpc_url = format!("ws://localhost:{relaychain_rpc_port}");
     wait_ws_ready(&relay_rpc_url).await.unwrap();
     let sync_db_path = format!(
@@ -111,12 +110,12 @@ async fn sync_para(
         relaychain.as_ref(),
     ]);
 
-    println!("{:?}", opts);
+    debug!("{:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
     debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    println!("sync para logs: {}", sync_node.log_cmd());
+    info!("sync para logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
@@ -148,7 +147,7 @@ async fn export_state(
         .await
         .unwrap();
 
-    println!("State exported to {exported_state_file}");
+    info!("State exported to {exported_state_file}");
     Ok(exported_state_file)
 }
 
@@ -260,11 +259,11 @@ async fn bite(
         paras_heads: paras_head,
     };
     trace!("{:?}", fork_off_config);
-    println!("{}", exported_state_file.as_ref());
-    println!("{:?}", fork_off_config);
+    info!("{}", exported_state_file.as_ref());
+    info!("{:?}", fork_off_config);
 
     let forked_off_path = fork_off(exported_state_file.as_ref(), &fork_off_config, context).await?;
-    println!("{:?}", forked_off_path);
+    info!("{:?}", forked_off_path);
 
     Ok(forked_off_path)
 }
@@ -292,7 +291,7 @@ async fn spawn_forked_network(
         }
     }
 
-    println!("{:?}", spec);
+    debug!("{:?}", spec);
 
     let filesystem = LocalFileSystem;
     let orchestrator = Orchestrator::new(filesystem, provider);
@@ -347,7 +346,7 @@ async fn main() {
 
     let (relay_chain, paras_to) = cli::parse(args);
 
-    println!("{:?}",paras_to);
+    info!("Syncing {} and paras: {:?}",relay_chain.as_chain_string(), paras_to);
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
     let fixed_base_dir = PathBuf::from_str("/tmp/z").unwrap();
