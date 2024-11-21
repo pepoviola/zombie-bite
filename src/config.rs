@@ -53,6 +53,7 @@ pub enum Parachain {
     // Bridge
 }
 
+
 impl Parachain {
     pub fn as_local_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
@@ -76,6 +77,14 @@ impl Parachain {
 
     pub fn context(&self) -> Context {
         Context::Parachain
+    }
+
+    pub fn id(&self) -> u32 {
+        match self {
+            Parachain::AssetHub => 1000,
+            Parachain::Coretime => 1005,
+            Parachain::People => 1001,
+        }
     }
 }
 
@@ -113,6 +122,7 @@ pub fn generate_network_config(
             .with_default_command(relay_context.cmd().as_str())
             .with_chain_spec_command(chain_spec_cmd)
             .chain_spec_command_is_local(true)
+            .with_default_args(vec![("-l", "babe=debug,grandpa=debugruntime=debug,parachain::=debug,sub-authority-discovery=trace").into()])
             .with_node(|node| node.with_name(ALICE))
             .with_node(|node| node.with_name(BOB))
             .with_node(|node| node.with_name(CHARLIE))
@@ -122,9 +132,9 @@ pub fn generate_network_config(
     let network_builder = paras.iter().fold(network_builder, |builder, para| {
         println!("para: {:?}", para);
         let (chain_part, id) = match para {
-            Parachain::AssetHub => ("asset-hub", 1000_u32),
-            Parachain::Coretime => ("coretime", 1005_u32),
-            Parachain::People => ("people", 1004_u32),
+            Parachain::AssetHub => ("asset-hub", para.id()),
+            Parachain::Coretime => ("coretime", para.id()),
+            Parachain::People => ("people", para.id()),
         };
         let chain = format!("{}-{}",chain_part, relay_chain);
 
@@ -134,9 +144,11 @@ pub fn generate_network_config(
                 .with_chain(chain.as_str())
                 .with_chain_spec_command(chain_spec_cmd)
                 .with_collator(|c| {
-                    c.with_name(&format!("collator-{}",id))
+                    // TODO: use single collator for now
+                    // c.with_name(&format!("col-{}",id))
+                    c.with_name("collator")
                     .with_args(vec![
-                        ("-l", "aura=trace,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug").into(),
+                        ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,sub-authority-discovery=trace").into(),
                         "--force-authoring".into()
                         ])
                 })

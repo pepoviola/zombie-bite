@@ -6,6 +6,37 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
+use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
+/// Parachain id.
+///
+/// This is an equivalent of the `polkadot_parachain_primitives::Id`, which is a compact-encoded
+/// `u32`.
+#[derive(
+    Clone,
+    CompactAs,
+    Copy,
+    Decode,
+    Default,
+    Encode,
+    Eq,
+    Hash,
+    MaxEncodedLen,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub struct ParaId(pub u32);
+
+impl From<u32> for ParaId {
+    fn from(id: u32) -> Self {
+        ParaId(id)
+    }
+}
+
+/// Parachain head data included in the chain.
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
+pub struct HeadData(pub Vec<u8>);
+
 pub async fn get_random_port() -> u16 {
     let listener = TcpListener::bind("0.0.0.0:0".to_string())
         .await
@@ -68,4 +99,16 @@ where
         .write_all(data)
         .await
         .map_err(|_| anyhow!("Error writting file {}", path.as_ref().to_string_lossy()))?)
+}
+
+pub fn para_head_key(para_id: u32) -> String {
+    const PARAS_HEAD_PREFIX: &str = "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3";
+    let para_id: ParaId = para_id.into();
+    let para_id_hash = subhasher::twox64_concat(&para_id.encode());
+    let key = format!(
+        "{PARAS_HEAD_PREFIX}{}",
+        array_bytes::bytes2hex("", &para_id_hash)
+    );
+
+    key
 }

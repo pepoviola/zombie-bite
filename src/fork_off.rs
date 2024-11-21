@@ -276,11 +276,36 @@ impl From<u32> for ParaId {
     PartialEq,
     PartialOrd,
 )]
+pub struct CoreIndex(pub u32);
+impl From<u32> for CoreIndex {
+    fn from(id: u32) -> Self {
+        CoreIndex(id)
+    }
+}
+
+#[derive(
+    Clone,
+    CompactAs,
+    Copy,
+    Decode,
+    Default,
+    Encode,
+    Eq,
+    Hash,
+    MaxEncodedLen,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
 pub struct Bl(pub u32);
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
 pub struct HeadData(pub Vec<u8>);
+
+/// Parachain head data included in the chain.
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
+pub struct MessageQueueChain(pub sp_core::H256);
 
 #[cfg(test)]
 mod test {
@@ -291,6 +316,15 @@ mod test {
     use codec::Encode;
 
     #[test]
+    fn twox256_works(){
+        let idx: CoreIndex = 0.into();
+        let zero = subhasher::twox256(idx.encode());
+        println!("{}", array_bytes::bytes2hex("0x", zero));
+        let val = MessageQueueChain(sp_core::H256::zero()).encode();
+        println!("{}", array_bytes::bytes2hex("0x", val));
+    }
+
+    #[test]
     fn heads() {
         let paras_head_prefix =
             "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3";
@@ -299,11 +333,35 @@ mod test {
             substorager::storage_value_key(&b"Paras"[..], b"Heads"),
         );
         assert_eq!(paras_head_prefix, paras_head_prefix_gen.as_str());
+
+        // construct the key
+        let para_id: ParaId = 1000_u32.into();
+        let encoded = para_id.encode();
+        let para_id_hash = subhasher::twox64_concat(&encoded);
+        println!("paraId(1000) {}", array_bytes::bytes2hex("",&para_id_hash));
+        let key = format!(
+            "{paras_head_prefix}{}",
+            array_bytes::bytes2hex("", &para_id_hash)
+        );
+
+        let head = "0x8a98384334fa4699a25a20227322f240d440bb2c80342cac1c3ba82999963cb15240c90177a61cae36ce0de8652e5e6d0a9a3e73d4fbeb736fc1c4e4b0c9b86e90c50eaf846fc952f36dc6a8f28f25e187fc7347c942c0960ce5acd2b0d4421cebdc6d790c0661757261204ed49808000000000452505352909cd3b9bdee77156c8e5c74e83dbbf7faaf5d66a98bf8dc630e56cf9c628157a27ebe8c05056175726101019ecb399a86c3536ff8e7ea65890d83655126c1e9673dbf31059b7d37a37e5c3dd70d329102ba7b876c0b463547ba021a7c4aefe706b441012a26dc1b950f0c00";
+
+        // let head = "0xa8b352f2abae4d6761e27903d21c0b0ef82b19f88a669fb2d8e0dac8f6cec0f61addc801ba0cf1c2c5d8b9a9a6e61b812acb484d1a39180c5c0e1441150e93917b6d8474765ccf155e57e445bd443b8dcdd09400cdeb6d2d5a728106f87ebd3cb38b076d0c06617572612064bb980800000000045250535290bcff4cafc894eec61315567012c193803e1f49d990b04e95cc570e5a31c8a9cf4ef78b050561757261010134c68400fe59c0c9e5cfdc6b6868f654055b3c2046a3486945b1c8e3176411f4332dadd7bac02296420b036b77ab921f8aba089052c80a20e54f02a19d1a2203";
+                         "0x432a9ed9f85634d93ae6a05d0a451fe3e23b78c06d5bb30829d36067dc2127ea223bc9013f1250bd5b953710939adf755ce591a825c30ae04017e7f62a14cbac0b3b69cd563957aef72d5220cd5f2bd5c0efccadca9a47342136d68991c42052f6ff0f7c0c066175726120f7d29808000000000452505352905246b49bce4cd6943e60d1f886182f755733a6c25006d3cff34b7f50d66cf157d2b38c05056175726101013f39cf0bdc7cf05c11801829c0fb253a3493c2cc90bb9eb1858e7bf0a047e39f8dd89f6a8221599a94c31a2a2820d50c09ecd36a048dec83515906e85274dd0e";
+        let para_head = array_bytes::bytes2hex("0x", HeadData(hex::decode(&head[2..]).unwrap()).encode());
+        println!("asset-hub(1000) : {}", key);
+        println!("asset-hub(1000) head: {}", para_head);
+
+        let vec_of_paras: Vec<ParaId> = vec![];
+        println!("vec od paras : {}", array_bytes::bytes2hex("0x",vec_of_paras.encode()));
     }
 
     #[test]
     fn demo() {
         let prefix = array_bytes::bytes2hex("0x", subhasher::twox128(b"CollatorSelection"));
+
+        let gap = array_bytes::bytes2hex("0x", subhasher::twox128(b"gap"));
+        println!("gap: {gap}");
 
         let inv = array_bytes::bytes2hex(
             "0x",
@@ -356,6 +414,30 @@ mod test {
         );
 
         println!(
+            "grandpa voters {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Grandpa"[..], b"voters")
+            )
+        );
+
+        println!(
+            "grandpa CurrentSetId {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Grandpa"[..], b"CurrentSetId")
+            )
+        );
+
+        println!(
+            "grandpa Stalled {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Grandpa"[..], b"Stalled")
+            )
+        );
+
+        println!(
             "Authorship {}",
             array_bytes::bytes2hex("0x", subhasher::twox128(b"Authorship"))
         );
@@ -394,19 +476,42 @@ mod test {
             )
         );
 
+        println!(
+            "Staking_MinimumValidatorCount {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Staking"[..], b"MinimumValidatorCount")
+            )
+        );
+
+        println!(
+            "Configuration_ActiveConfig {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Configuration"[..], b"ActiveConfig")
+            )
+        );
+
         println!("prefix: {prefix}");
         println!("invulnerables: {inv}");
     }
 
     #[test]
     fn para_id() {
-        let para_id: ParaId = 1005_u32.into();
+        let para_id: ParaId = 1000_u32.into();
         let encoded = para_id.encode();
+        println!("encoded paraId: {}", array_bytes::bytes2hex("", &encoded));
         let hash = subhasher::twox64_concat(&encoded);
         assert_eq!(
             array_bytes::bytes2hex("", &hash),
             "d6dbddd5e1a9eb49ed030000"
         );
+    }
+
+    #[test]
+    pub fn test_to_hex() {
+        println!("{}", "grandpa_voters");
+        assert_eq!(hex::encode(b"grandpa_voters"), "666f6f626172");
     }
 
     #[test]
@@ -443,4 +548,47 @@ mod test {
         .unwrap();
         println!("{:?}", forked_off_path);
     }
+
+    #[test]
+    fn hex_test() {
+        let val = "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3b6ff6f7d467b87a9e8030000";
+        let a = hex::decode("cd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3b6ff6f7d467b87a9e8030000").unwrap();
+        let b = hex::decode(&val[2..]).unwrap();
+        assert_eq!(a, b);
+    }
 }
+
+
+// paras.parachains
+// 0xcd710b30bd2eab0352ddcc26417aa1940b76934f4cc08dee01012d059e1b83ee
+// 0x04e8030000 (only 1000)
+
+// paras.heads
+// 0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3
+
+// paras.heads.1000
+// 0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3b6ff6f7d467b87a9e8030000
+
+// paraScheduler.validatorGroup
+// 0x94eadf0156a8ad5156507773d0471e4a16973e1142f5bd30d9464076794007db
+// 0x041000000000010000000200000003000000 (one group of 4 valudators)
+
+// paraScheduler.claimQueue
+// 0x94eadf0156a8ad5156507773d0471e4a49f6c9aa90c04982c05388649310f22f
+// 0x040000000000 (empty, will auto-fill?)
+
+// paraShared.activeValidatorIndices
+// 0xb341e3a63e58a188839b242d17f8c9f82586833f834350b4d435d5fd269ecc8b
+// 0x1000000000030000000200000001000000 ( 4 validator shuffle)
+
+// paraShared.activeValidatorKeys
+// 0xb341e3a63e58a188839b242d17f8c9f87a50c904b368210021127f9238883a6e
+// 0x10d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc2090b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe228eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48
+
+// authorityDiscovery.keys
+// 0x2099d7f109d6e535fb000bba623fd4409f99a2ce711f3a31b2fc05604c93f179
+// 0x10d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a4890b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20
+
+// authorityDiscovery.nextKeys
+// 0x2099d7f109d6e535fb000bba623fd4404c014e6bf8b8c2c011e7290b85696bb3
+// 0x10d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a4890b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20

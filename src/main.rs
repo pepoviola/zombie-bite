@@ -10,7 +10,7 @@ use config::Context;
 use futures::future::try_join_all;
 use futures::FutureExt;
 use reqwest::Url;
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 use zombienet_configuration::types::AssetLocation;
 use zombienet_orchestrator::Orchestrator;
 use zombienet_orchestrator::{
@@ -22,12 +22,15 @@ use zombienet_provider::{
     types::{RunCommandOptions, SpawnNodeOptions},
     DynNamespace, DynNode, DynProvider, NativeProvider, Provider,
 };
-use zombienet_support::{fs::local::LocalFileSystem, net::wait_ws_ready};
+use zombienet_support::net::wait_ws_ready;
+use zombienet_sdk::LocalFileSystem;
 
 mod utils;
 use utils::get_random_port;
 mod chain_spec_raw;
 mod config;
+mod sync;
+mod cli;
 
 mod fork_off;
 use fork_off::{fork_off, ForkOffConfig};
@@ -63,12 +66,12 @@ async fn sync_relay_only(
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
     debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    println!("sync node logs: {}", sync_node.log_cmd());
+    info!("sync node logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
     wait_sync(url).await.unwrap();
-    println!("sync ok!, stopping node");
+    info!("sync ok!, stopping node");
     // we should just paused
     // sync_node.destroy().await.unwrap();
     Ok((sync_node, sync_db_path))
@@ -107,12 +110,12 @@ async fn sync_para(
         relaychain.as_ref(),
     ]);
 
-    println!("{:?}", opts);
+    debug!("{:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
     debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    println!("sync para logs: {}", sync_node.log_cmd());
+    info!("sync para logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
@@ -144,7 +147,7 @@ async fn export_state(
         .await
         .unwrap();
 
-    println!("State exported to {exported_state_file}");
+    info!("State exported to {exported_state_file}");
     Ok(exported_state_file)
 }
 
@@ -256,11 +259,11 @@ async fn bite(
         paras_heads: paras_head,
     };
     trace!("{:?}", fork_off_config);
-    println!("{}", exported_state_file.as_ref());
-    println!("{:?}", fork_off_config);
+    info!("{}", exported_state_file.as_ref());
+    info!("{:?}", fork_off_config);
 
     let forked_off_path = fork_off(exported_state_file.as_ref(), &fork_off_config, context).await?;
-    println!("{:?}", forked_off_path);
+    info!("{:?}", forked_off_path);
 
     Ok(forked_off_path)
 }
@@ -288,7 +291,7 @@ async fn spawn_forked_network(
         }
     }
 
-    println!("{:?}", spec);
+    debug!("{:?}", spec);
 
     let filesystem = LocalFileSystem;
     let orchestrator = Orchestrator::new(filesystem, provider);
@@ -341,34 +344,9 @@ async fn main() {
         );
     }
 
-    // TODO: move to clap
-    let relay_chain = match args[1].as_str() {
-        "polkadot" => config::Relaychain::Polkadot,
-        "kusama" => config::Relaychain::Kusama,
-        "rococo" => config::Relaychain::Rococo,
-        _ => {
-            panic!("Invalid network, should be one of 'polkadot, kusama, rococo'");
-        }
-    };
+    let (relay_chain, paras_to) = cli::parse(args);
 
-    // TODO: support multiple paras
-    let paras_to: Vec<config::Parachain> = if let Some(paras_to_fork) = args.get(2) {
-        let mut paras_to = vec![];
-        for para in paras_to_fork.trim().split(',').into_iter() {
-            match para {
-                "asset-hub" => paras_to.push(config::Parachain::AssetHub),
-                "coretime" => paras_to.push(config::Parachain::Coretime),
-                "people" => paras_to.push(config::Parachain::People),
-                _ => {
-                    warn!("Invalid para {para}, skipping...");
-                }
-            }
-        }
-        paras_to
-    } else {
-        vec![]
-    };
-
+    info!("Syncing {} and paras: {:?}",relay_chain.as_chain_string(), paras_to);
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
     let fixed_base_dir = PathBuf::from_str("/tmp/z").unwrap();
