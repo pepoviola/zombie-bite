@@ -50,24 +50,28 @@ cargo run -- kusama asset-hub
 
 ### Steps for doppelganger :
 
-Compile the node using [this branch](https://github.com/paritytech/polkadot-sdk/tree/jv-doppelganger-node) from the polkadot-sdk repo
+Compile the node/s using [this branch](https://github.com/paritytech/polkadot-sdk/tree/jv-doppelganger-node) from the polkadot-sdk repo
 
 ```
-cargo build -p polkadot-doppelganger-node --release
+SKIP_WASM_BUILD=1 cargo build --release -p polkadot-doppelganger-node --bin doppelganger
+SKIP_WASM_BUILD=1 cargo build --release -p polkadot-parachain-bin --features doppelganger --bin doppelganger-parachain
+SKIP_WASM_BUILD=1 cargo build --release -p polkadot-parachain-bin --bin polkadot-parachain
+SKIP_WASM_BUILD=1 cargo build --profile testnet --bin polkadot --bin polkadot-prepare-worker --bin polkadot-execute-worker
 ```
 
-Make polkadot binaries (polkadot and workers) and doppelganger available in your PATH, then run with:
+Make polkadot binaries (polkadot, polkadot-parachain and workers) and (doppelganger, doppelganger-parachain) available in your PATH, then run this command to spawn polkadot and asset-hib from the live chains:
 
   ```
-  RUST_LOG=zombienet=debug cargo run --bin doppelganger
+  RUST_LOG=zombienet=debug cargo run --bin doppelganger polkadot asset-hub
   ```
 
 This will:
 
-- Run doppelganger to sync (warp) kusama to a temp dir with the defaults overrides (2 nodes network)
+- Run doppelganger-parachain to sync (warp) asset-hub to a temp dir with the defaults overrides (4 nodes network)
+- Run doppelganger to sync (warp) polkadot to a temp dir with the defaults overrides (4 nodes network)
 - Generate the chain-spec without bootnodes
 - Create a new snapshot to use with the new network in zombienet
-- Spawn the new network and keep it running
+- Spawn the new network and keep it running (_note_: you need to wait a couple of minutes to bootstrap)
 
 
 _Log level for nodes_: By default the nodes are spawned with this log leves:
