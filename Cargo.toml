@@ -38,6 +38,10 @@ path = "src/doppelganger.rs"
 name = "regular"
 path = "src/regular.rs"
 
+[[bin]]
+name = "cli"
+path = "src/from_toml.rs"
+
 # [patch.crates-io]
 # zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
 # zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
