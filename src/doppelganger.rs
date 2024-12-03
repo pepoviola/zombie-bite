@@ -148,7 +148,8 @@ async fn main() {
     let r_snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain);
     generate_snap(&sync_db_path, &r_snap_path).await.unwrap();
 
-    let relay_artifacts = ChainArtifact { cmd: context_relay.cmd(), chain: sync_chain, spec_path: r_chain_spec_path, snap_path: r_snap_path };
+    // let relay_artifacts = ChainArtifact { cmd: context_relay.cmd(), chain: sync_chain, spec_path: r_chain_spec_path, snap_path: r_snap_path };
+    let relay_artifacts = ChainArtifact { cmd: "doppelganger".into(), chain: sync_chain, spec_path: r_chain_spec_path, snap_path: r_snap_path };
 
     let _network = spawn(provider, relay_artifacts, para_artifacts)
         .await
@@ -176,7 +177,6 @@ async fn spawn(
                 .with_default_db_snapshot(PathBuf::from(relaychain.snap_path.as_str()))
                 .with_default_args(vec![
                     ("-l", leaked_rust_log.as_str()).into(),
-                    // ("--force-authoring".into()),
                     "--discover-local".into(),
                     "--allow-private-ip".into()
                 ])

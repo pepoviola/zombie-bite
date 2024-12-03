@@ -37,8 +37,6 @@ pub async fn sync_relay_only(
         "warp",
         "-d",
         &sync_db_path,
-        // "--rpc-port",
-        // &rpc_random_port.to_string(),
         "--prometheus-port",
         &metrics_random_port.to_string(),
     ])
@@ -65,8 +63,6 @@ pub async fn sync_para(
     relaychain: impl AsRef<str>,
     relaychain_rpc_port: u16,
 ) -> Result<(DynNode, String, String), ()> {
-    let relay_rpc_url = format!("ws://localhost:{relaychain_rpc_port}");
-    // wait_ws_ready(&relay_rpc_url).await.unwrap();
     let sync_db_path = format!(
         "{}/paras/{}/sync-db",
         ns.base_dir().to_string_lossy(),
@@ -92,8 +88,8 @@ pub async fn sync_para(
         "--prometheus-port",
         &metrics_random_port.to_string(),
         "--relay-chain-rpc-url",
+        // TODO: make this endpoint configurable
         "wss://polkadot-rpc.dwellir.com",
-        // &format!("ws://localhost:{relaychain_rpc_port}"),
         "--",
         "--chain",
         relaychain.as_ref(),
@@ -127,9 +123,7 @@ async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
     let mut q = TERMINAL_WIDTH;
     // remove the first message
     q -= 7;
-    // while let 1_f64 = Metrics::metric_with_url("substrate_sub_libp2p_is_major_syncing", url.clone())
-    //     .await
-    //     .unwrap()
+
     while is_syncing(url.clone()).await {
         if q == 0 {
             print!("\x1b[2K"); // Clear the whole line
