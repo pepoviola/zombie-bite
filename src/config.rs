@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+// TODO: don't allow dead_code
+
 use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
 
 #[derive(Debug, PartialEq)]
@@ -20,7 +23,6 @@ impl Context {
 pub enum Relaychain {
     Polkadot,
     Kusama,
-    Rococo,
 }
 
 impl Relaychain {
@@ -28,7 +30,6 @@ impl Relaychain {
         String::from(match self {
             Relaychain::Polkadot => "polkadot-local",
             Relaychain::Kusama => "kusama-local",
-            Relaychain::Rococo => "rococo-local",
         })
     }
 
@@ -36,7 +37,6 @@ impl Relaychain {
         String::from(match self {
             Relaychain::Polkadot => "polkadot",
             Relaychain::Kusama => "kusama",
-            Relaychain::Rococo => "rococo",
         })
     }
 
@@ -111,11 +111,7 @@ pub fn generate_network_config(
     let relay_context = Context::Relaychain;
     let para_context = Context::Parachain;
 
-    let chain_spec_cmd = if *network == Relaychain::Rococo {
-        DEFAULT_CHAIN_SPEC_TPL_COMMAND
-    } else {
-        CMD_TPL
-    };
+    let chain_spec_cmd = CMD_TPL;
 
     let network_builder = NetworkConfigBuilder::new().with_relaychain(|r| {
         r.with_chain(relay_chain.as_str())
