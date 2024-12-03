@@ -39,7 +39,7 @@ name = "regular"
 path = "src/regular.rs"
 
 [[bin]]
-name = "cli"
+name = "spawn"
 path = "src/from_toml.rs"
 
 # [patch.crates-io]
