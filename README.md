@@ -59,7 +59,7 @@ SKIP_WASM_BUILD=1 cargo build --release -p polkadot-parachain-bin --bin polkadot
 SKIP_WASM_BUILD=1 cargo build --profile testnet --bin polkadot --bin polkadot-prepare-worker --bin polkadot-execute-worker
 ```
 
-Make polkadot binaries (polkadot, polkadot-parachain and workers) and (doppelganger, doppelganger-parachain) available in your PATH, then you need to go back to this _repo_ and run this command to spawn polkadot and asset-hub from the live chains:
+Make polkadot binaries (polkadot, polkadot-parachain and workers) and (doppelganger, doppelganger-parachain) available in your PATH, then you need to go back to this [_repo_](https://github.com/pepoviola/zombie-bite) and run this command to spawn polkadot and asset-hub from the live chains:
 
   ```
   RUST_LOG=zombienet=debug cargo run --bin doppelganger polkadot asset-hub
