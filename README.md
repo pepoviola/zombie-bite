@@ -56,7 +56,7 @@ Compile the node/s using [this branch](https://github.com/paritytech/polkadot-sd
 SKIP_WASM_BUILD=1 cargo build --release -p polkadot-doppelganger-node --bin doppelganger
 SKIP_WASM_BUILD=1 cargo build --release -p polkadot-parachain-bin --features doppelganger --bin doppelganger-parachain
 SKIP_WASM_BUILD=1 cargo build --release -p polkadot-parachain-bin --bin polkadot-parachain
-SKIP_WASM_BUILD=1 cargo build --profile testnet --bin polkadot --bin polkadot-prepare-worker --bin polkadot-execute-worker
+SKIP_WASM_BUILD=1 cargo build --release --bin polkadot --bin polkadot-prepare-worker --bin polkadot-execute-worker
 ```
 
 Make polkadot binaries (polkadot, polkadot-parachain and workers) and (doppelganger, doppelganger-parachain) available in your PATH, then you need to go back to this [_repo_](https://github.com/pepoviola/zombie-bite) and run this command to spawn polkadot and asset-hub from the live chains:
