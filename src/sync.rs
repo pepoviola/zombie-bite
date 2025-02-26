@@ -39,6 +39,7 @@ pub async fn sync_relay_only(
         &sync_db_path,
         "--prometheus-port",
         &metrics_random_port.to_string(),
+        "--no-hardware-benchmarks"
     ])
     .env(env);
 
@@ -93,6 +94,7 @@ pub async fn sync_para(
         "--",
         "--chain",
         relaychain.as_ref(),
+        "--no-hardware-benchmarks"
     ])
     .env(env);
 

@@ -178,7 +178,8 @@ async fn spawn(
                 .with_default_args(vec![
                     ("-l", leaked_rust_log.as_str()).into(),
                     "--discover-local".into(),
-                    "--allow-private-ip".into()
+                    "--allow-private-ip".into(),
+                    "--no-hardware-benchmarks".into(),
                 ])
                 .with_node(|node|
                     node
@@ -216,7 +217,8 @@ async fn spawn(
                             ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,sub-authority-discovery=trace").into(),
                             "--force-authoring".into(),
                             "--discover-local".into(),
-                            "--allow-private-ip".into()
+                            "--allow-private-ip".into(),
+                            "--no-hardware-benchmarks".into(),
                         ])
                 )
             })
