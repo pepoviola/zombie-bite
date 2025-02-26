@@ -187,8 +187,8 @@ async fn spawn(
                         .with_rpc_port(rpc_port)
                     )
                 .with_node(|node| node.with_name("bob"))
-                .with_node(|node| node.with_name("charlie"))
-                .with_node(|node| node.with_name("dave"))
+                // .with_node(|node| node.with_name("charlie"))
+                // .with_node(|node| node.with_name("dave"))
         });
     if !paras.is_empty() {
         // TODO: enable for multiple paras
