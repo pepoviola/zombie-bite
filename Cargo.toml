@@ -6,11 +6,11 @@ default-run = "zombie-bite"
 
 
 [dependencies]
-zombienet-sdk = "0.2.9"
-zombienet-provider = "0.2.9"
-zombienet-orchestrator = "0.2.9"
-zombienet-support = "0.2.9"
-zombienet-configuration = "0.2.9"
+zombienet-sdk = "0.2"
+zombienet-provider = "0.2"
+zombienet-orchestrator = "0.2"
+zombienet-support = "0.2"
+zombienet-configuration = "0.2"
 tokio = "1"
 reqwest = "0.12"
 tracing-subscriber = "0.3.18"
@@ -34,9 +34,9 @@ sp-core = "34.0.0"
 name = "doppelganger"
 path = "src/doppelganger.rs"
 
-[[bin]]
-name = "regular"
-path = "src/regular.rs"
+# [[bin]]
+# name = "regular"
+# path = "src/regular.rs"
 
 [[bin]]
 name = "spawn"

@@ -19,47 +19,54 @@ impl Context {
     }
 }
 
+type MaybeWasmOverridePath = Option<String>;
+
 #[derive(Debug, PartialEq)]
 pub enum Relaychain {
-    Polkadot,
-    Kusama,
+    Polkadot(MaybeWasmOverridePath),
+    Kusama(MaybeWasmOverridePath),
 }
 
 impl Relaychain {
     pub fn as_local_chain_string(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot => "polkadot-local",
-            Relaychain::Kusama => "kusama-local",
+            Relaychain::Polkadot(_) => "polkadot-local",
+            Relaychain::Kusama(_) => "kusama-local",
         })
     }
 
     pub fn as_chain_string(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot => "polkadot",
-            Relaychain::Kusama => "kusama",
+            Relaychain::Polkadot(_) => "polkadot",
+            Relaychain::Kusama(_) => "kusama",
         })
     }
 
     pub fn context(&self) -> Context {
         Context::Relaychain
     }
+
+    pub fn wasm_overrides(&self) -> Option<&str> {
+        match self {
+            Relaychain::Kusama(x) | Relaychain::Polkadot(x) => x.as_deref(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Parachain {
-    AssetHub,
-    Coretime,
-    People,
+    AssetHub(MaybeWasmOverridePath),
+    Coretime(MaybeWasmOverridePath),
+    People(MaybeWasmOverridePath),
     // Bridge
 }
-
 
 impl Parachain {
     pub fn as_local_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
-            Parachain::AssetHub => "asset-hub",
-            Parachain::Coretime => "coretime",
-            Parachain::People => "people",
+            Parachain::AssetHub(_) => "asset-hub",
+            Parachain::Coretime(_) => "coretime",
+            Parachain::People(_) => "people",
         };
 
         format!("{para_part}-{relay_part}-local")
@@ -67,9 +74,9 @@ impl Parachain {
 
     pub fn as_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
-            Parachain::AssetHub => "asset-hub",
-            Parachain::Coretime => "coretime",
-            Parachain::People => "people",
+            Parachain::AssetHub(_) => "asset-hub",
+            Parachain::Coretime(_) => "coretime",
+            Parachain::People(_) => "people",
         };
 
         format!("{para_part}-{relay_part}")
@@ -81,9 +88,15 @@ impl Parachain {
 
     pub fn id(&self) -> u32 {
         match self {
-            Parachain::AssetHub => 1000,
-            Parachain::Coretime => 1005,
-            Parachain::People => 1001,
+            Parachain::AssetHub(_) => 1000,
+            Parachain::Coretime(_) => 1005,
+            Parachain::People(_) => 1001,
+        }
+    }
+
+    pub fn wasm_overrides(&self) -> Option<&str> {
+        match self {
+            Parachain::AssetHub(x) | Parachain::Coretime(x) | Parachain::People(x) => x.as_deref(),
         }
     }
 }
@@ -128,9 +141,9 @@ pub fn generate_network_config(
     let network_builder = paras.iter().fold(network_builder, |builder, para| {
         println!("para: {:?}", para);
         let (chain_part, id) = match para {
-            Parachain::AssetHub => ("asset-hub", para.id()),
-            Parachain::Coretime => ("coretime", para.id()),
-            Parachain::People => ("people", para.id()),
+            Parachain::AssetHub(_) => ("asset-hub", para.id()),
+            Parachain::Coretime(_) => ("coretime", para.id()),
+            Parachain::People(_) => ("people", para.id()),
         };
         let chain = format!("{}-{}",chain_part, relay_chain);
 
