@@ -5,7 +5,6 @@ use zombienet_orchestrator::Orchestrator;
 use zombienet_provider::NativeProvider;
 use zombienet_sdk::LocalFileSystem;
 
-
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -20,7 +19,7 @@ async fn main() {
         );
     }
 
-    let toml_path  = &args[1];
+    let toml_path = &args[1];
     let config = zombienet_configuration::NetworkConfig::load_from_toml(&toml_path).unwrap();
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());

@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+// TODO: don't allow dead_code
+
 use std::path::Path;
 
 use anyhow::anyhow;
@@ -102,7 +105,8 @@ where
 }
 
 pub fn para_head_key(para_id: u32) -> String {
-    const PARAS_HEAD_PREFIX: &str = "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3";
+    const PARAS_HEAD_PREFIX: &str =
+        "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3";
     let para_id: ParaId = para_id.into();
     let para_id_hash = subhasher::twox64_concat(&para_id.encode());
     let key = format!(

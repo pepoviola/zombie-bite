@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+// TODO: don't allow dead_code
+
 use std::{
     io::{self, Write},
     time::Duration,
@@ -6,12 +9,9 @@ use std::{
 use crate::utils::get_random_port;
 
 use reqwest::Url;
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info};
 use zombienet_orchestrator::metrics::{Metrics, MetricsHelper};
-use zombienet_provider::{
-    types::SpawnNodeOptions,
-    DynNamespace, DynNode,
-};
+use zombienet_provider::{types::SpawnNodeOptions, DynNamespace, DynNode};
 use zombienet_support::net::wait_ws_ready;
 
 pub async fn sync_relay_only(
@@ -24,24 +24,29 @@ pub async fn sync_relay_only(
     let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
 
     let env = if std::env::var("ZOMBIE_DUMP").is_ok() {
-        [para_heads_env, vec![("ZOMBIE_DUMP".to_string(), "1".to_string())]].concat()
+        [
+            para_heads_env,
+            vec![("ZOMBIE_DUMP".to_string(), "1".to_string())],
+        ]
+        .concat()
     } else {
         para_heads_env
     };
 
     let metrics_random_port = get_random_port().await;
-    let opts = SpawnNodeOptions::new("sync-node", cmd.as_ref()).args(vec![
-        "--chain",
-        chain.as_ref(),
-        "--sync",
-        "warp",
-        "-d",
-        &sync_db_path,
-        "--prometheus-port",
-        &metrics_random_port.to_string(),
-        "--no-hardware-benchmarks"
-    ])
-    .env(env);
+    let opts = SpawnNodeOptions::new("sync-node", cmd.as_ref())
+        .args(vec![
+            "--chain",
+            chain.as_ref(),
+            "--sync",
+            "warp",
+            "-d",
+            &sync_db_path,
+            "--prometheus-port",
+            &metrics_random_port.to_string(),
+            "--no-hardware-benchmarks",
+        ])
+        .env(env);
 
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
@@ -62,7 +67,7 @@ pub async fn sync_para(
     cmd: impl AsRef<str>,
     chain: impl AsRef<str>,
     relaychain: impl AsRef<str>,
-    relaychain_rpc_port: u16,
+    _relaychain_rpc_port: u16,
 ) -> Result<(DynNode, String, String), ()> {
     let sync_db_path = format!(
         "{}/paras/{}/sync-db",
@@ -77,27 +82,27 @@ pub async fn sync_para(
         vec![]
     };
 
-    let opts = SpawnNodeOptions::new("sync-node-para", cmd.as_ref()).args(vec![
-        "--chain",
-        chain.as_ref(),
-        "--sync",
-        "warp",
-        "-d",
-        &sync_db_path,
-        "--rpc-port",
-        &rpc_random_port.to_string(),
-        "--prometheus-port",
-        &metrics_random_port.to_string(),
-        "--relay-chain-rpc-url",
-        // TODO: make this endpoint configurable
-        "wss://polkadot-rpc.dwellir.com",
-        "--",
-        "--chain",
-        relaychain.as_ref(),
-        "--no-hardware-benchmarks"
-    ])
-    .env(env);
-
+    let opts = SpawnNodeOptions::new("sync-node-para", cmd.as_ref())
+        .args(vec![
+            "--chain",
+            chain.as_ref(),
+            "--sync",
+            "warp",
+            "-d",
+            &sync_db_path,
+            "--rpc-port",
+            &rpc_random_port.to_string(),
+            "--prometheus-port",
+            &metrics_random_port.to_string(),
+            "--relay-chain-rpc-url",
+            // TODO: make this endpoint configurable
+            "wss://polkadot-rpc.dwellir.com",
+            "--",
+            "--chain",
+            relaychain.as_ref(),
+            "--no-hardware-benchmarks",
+        ])
+        .env(env);
 
     debug!("{:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
@@ -114,7 +119,6 @@ pub async fn sync_para(
     // sync_node.destroy().await.unwrap();
     Ok((sync_node, sync_db_path, chain.as_ref().to_string()))
 }
-
 
 // TODO: FIX terminal output on multiple tasks
 async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
