@@ -3,8 +3,9 @@
 
 use futures::future::try_join_all;
 use futures::FutureExt;
+use tokio::fs;
 use std::env;
-use std::fs::File;
+use std::fs::{File, read_to_string};
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -35,9 +36,11 @@ mod cli;
 mod config;
 mod sync;
 mod utils;
+mod overrides;
 
 use crate::sync::{sync_para, sync_relay_only};
 use crate::utils::get_random_port;
+use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use config::Context;
 
 #[derive(Debug, Clone)]
@@ -79,13 +82,16 @@ async fn main() {
     // Parachain sync
     let mut syncs = vec![];
     for para in &paras_to {
+        let para_default_overrides_path = generate_default_overrides_for_para(&base_dir_str, para.id().to_string()).await;
         syncs.push(
             sync_para(
                 ns.clone(),
                 "doppelganger-parachain",
                 para.as_chain_string(&relay_chain.as_chain_string()),
                 relay_chain.as_chain_string(),
-                relaychain_rpc_random_port,
+                // TODO: make this endpoint configurable
+                "wss://polkadot-rpc.dwellir.com",
+                para_default_overrides_path,
             )
             .boxed(),
         );
@@ -97,7 +103,7 @@ async fn main() {
     let mut para_artifacts = vec![];
     let mut para_heads_env = vec![];
     let context_para = Context::Parachain;
-    for (para_index, (sync_node, sync_db_path, sync_chain)) in res.into_iter().enumerate() {
+    for (para_index, (sync_node, sync_db_path, sync_chain, sync_head_path)) in res.into_iter().enumerate() {
         let chain_spec_path = format!("{}/{}-spec.json", &base_dir_str, &sync_chain);
         generate_chain_spec(
             ns.clone(),
@@ -112,26 +118,31 @@ async fn main() {
         let snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain);
         generate_snap(&sync_db_path, &snap_path).await.unwrap();
 
-        // real last log line to get the para_head
-        let logs = sync_node
-            .logs()
-            .await
-            .expect("read logs from node should work");
-        let para_head_str = logs
-            .lines()
-            .last()
-            .expect("last line should be valid.")
-            .to_string();
+        // // real last log line to get the para_head
+        // let logs = sync_node
+        //     .logs()
+        //     .await
+        //     .expect("read logs from node should work");
+        // let para_head_str = logs
+        //     .lines()
+        //     .last()
+        //     .expect("last line should be valid.")
+        //     .to_string();
+
+
+        let para_head_str = read_to_string(&sync_head_path).expect(&format!("read para_head ({sync_head_path}) file should works."));
+
         let para_head = array_bytes::bytes2hex(
             "0x",
-            HeadData(hex::decode(&para_head_str[2..]).unwrap()).encode(),
+            HeadData(hex::decode(&para_head_str[2..]).expect("para_head should be a valid hex. qed")).encode(),
         );
 
-        let para = paras_to.get(para_index).expect("index should be valid");
+        let para = paras_to.get(para_index).expect("para_index should be valid. qed");
         para_heads_env.push((
             format!("ZOMBIE_{}", &para_head_key(para.id())[2..]),
             format!("{}", &para_head[2..]),
         ));
+
         para_artifacts.push(ChainArtifact {
             cmd: context_para.cmd(),
             chain: sync_chain,
@@ -141,6 +152,7 @@ async fn main() {
         });
     }
 
+    let rc_default_overrides_path = generate_default_overrides_for_rc(&base_dir_str).await;
     // RELAYCHAIN sync
     let (sync_node, sync_db_path, sync_chain) = sync_relay_only(
         ns.clone(),
@@ -178,7 +190,6 @@ async fn main() {
     let r_snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain);
     generate_snap(&sync_db_path, &r_snap_path).await.unwrap();
 
-    // let relay_artifacts = ChainArtifact { cmd: context_relay.cmd(), chain: sync_chain, spec_path: r_chain_spec_path, snap_path: r_snap_path };
     let relay_artifacts = ChainArtifact {
         cmd: "doppelganger".into(),
         chain: sync_chain,

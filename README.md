@@ -67,8 +67,8 @@ Make polkadot binaries (polkadot, polkadot-parachain and workers) and (doppelgan
 
 This will:
 
-- Run doppelganger-parachain to sync (warp) asset-hub to a temp dir with the defaults overrides (4 nodes network)
-- Run doppelganger to sync (warp) polkadot to a temp dir with the defaults overrides (4 nodes network)
+- Run doppelganger-parachain to sync (warp) asset-hub to a temp dir with the defaults overrides (2 nodes network)
+- Run doppelganger to sync (warp) polkadot to a temp dir with the defaults overrides (2 nodes network)
 - Generate the chain-spec without bootnodes
 - Create a new snapshot to use with the new network in zombienet
 - Spawn the new network and keep it running (_note_: you need to wait a couple of minutes to bootstrap)
