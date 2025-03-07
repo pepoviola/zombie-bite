@@ -2,8 +2,7 @@
 // TODO: don't allow dead_code
 
 use std::{
-    io::{self, Write},
-    time::Duration,
+    io::{self, Write}, path::{Path, PathBuf}, time::Duration
 };
 
 use crate::utils::get_random_port;
@@ -67,20 +66,34 @@ pub async fn sync_para(
     cmd: impl AsRef<str>,
     chain: impl AsRef<str>,
     relaychain: impl AsRef<str>,
-    _relaychain_rpc_port: u16,
-) -> Result<(DynNode, String, String), ()> {
+    relaychain_endpoint: &str,
+    overrides_path: PathBuf,
+) -> Result<(DynNode, String, String, String), ()> {
     let sync_db_path = format!(
         "{}/paras/{}/sync-db",
         ns.base_dir().to_string_lossy(),
         chain.as_ref()
     );
+
+    let para_head_path = format!(
+        "{}/paras/{}/head.txt",
+        ns.base_dir().to_string_lossy(),
+        chain.as_ref()
+    );
+
     let rpc_random_port = get_random_port().await;
     let metrics_random_port = get_random_port().await;
-    let env = if std::env::var("ZOMBIE_DUMP").is_ok() {
+    let mut env = if std::env::var("ZOMBIE_DUMP").is_ok() {
         vec![("ZOMBIE_DUMP", "1")]
     } else {
         vec![]
     };
+
+    let para_overrides_path = overrides_path.to_string_lossy().to_string();
+    env.push(("ZOMBIE_PARA_OVERRIDES_PATH", &para_overrides_path));
+    env.push(("ZOMBIE_PARA_HEAD_PATH", &para_head_path));
+
+    println!("env: {env:?}");
 
     let opts = SpawnNodeOptions::new("sync-node-para", cmd.as_ref())
         .args(vec![
@@ -95,8 +108,7 @@ pub async fn sync_para(
             "--prometheus-port",
             &metrics_random_port.to_string(),
             "--relay-chain-rpc-url",
-            // TODO: make this endpoint configurable
-            "wss://polkadot-rpc.dwellir.com",
+            relaychain_endpoint,
             "--",
             "--chain",
             relaychain.as_ref(),
@@ -117,7 +129,7 @@ pub async fn sync_para(
     info!("✅ Synced (chain: {}), stopping node.", chain.as_ref());
     // we should just paused
     // sync_node.destroy().await.unwrap();
-    Ok((sync_node, sync_db_path, chain.as_ref().to_string()))
+    Ok((sync_node, sync_db_path, chain.as_ref().to_string(), para_head_path))
 }
 
 // TODO: FIX terminal output on multiple tasks
