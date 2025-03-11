@@ -131,10 +131,15 @@ async fn main() {
 
 
         let para_head_str = read_to_string(&sync_head_path).expect(&format!("read para_head ({sync_head_path}) file should works."));
+        let para_head_hex = if &para_head_str[..2] == "0x" {
+            &para_head_str[2..]
+        } else {
+            &para_head_str
+        };
 
         let para_head = array_bytes::bytes2hex(
             "0x",
-            HeadData(hex::decode(&para_head_str[2..]).expect("para_head should be a valid hex. qed")).encode(),
+            HeadData(hex::decode(para_head_hex).expect("para_head should be a valid hex. qed")).encode(),
         );
 
         let para = paras_to.get(para_index).expect("para_index should be valid. qed");
