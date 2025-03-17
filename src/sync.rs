@@ -92,6 +92,7 @@ pub async fn sync_para(
     let para_overrides_path = overrides_path.to_string_lossy().to_string();
     env.push(("ZOMBIE_PARA_OVERRIDES_PATH", &para_overrides_path));
     env.push(("ZOMBIE_PARA_HEAD_PATH", &para_head_path));
+    env.push(("RUST_LOG", "doppelganger=debug"));
 
     println!("env: {env:?}");
 
