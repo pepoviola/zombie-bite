@@ -82,7 +82,7 @@ async fn main() {
     // Parachain sync
     let mut syncs = vec![];
     for para in &paras_to {
-        let para_default_overrides_path = generate_default_overrides_for_para(&base_dir_str, para.id().to_string()).await;
+        let para_default_overrides_path = generate_default_overrides_for_para(&base_dir_str, para).await;
         syncs.push(
             sync_para(
                 ns.clone(),
