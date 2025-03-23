@@ -98,8 +98,7 @@ where
         .await
         .map_err(|_| anyhow!("Error creating file {}", path.as_ref().to_string_lossy()))?;
 
-    file
-        .write_all(data)
+    file.write_all(data)
         .await
         .map_err(|_| anyhow!("Error writting file {}", path.as_ref().to_string_lossy()))
 }

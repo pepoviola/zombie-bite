@@ -31,13 +31,13 @@ use utils::get_random_port;
 mod chain_spec_raw;
 mod cli;
 mod config;
-mod sync;
 mod doppelganger;
 mod overrides;
+mod sync;
 
 mod fork_off;
-use fork_off::{fork_off, ForkOffConfig};
 use crate::fork_off::ParasHeads;
+use fork_off::{fork_off, ForkOffConfig};
 
 use doppelganger::doppelganger_inner;
 
@@ -337,14 +337,13 @@ async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
 
 #[tokio::main]
 async fn main() {
-
-
-    tracing_subscriber::fmt().with_env_filter(
-        EnvFilter::builder()
-        .with_default_directive(LevelFilter::INFO.into())
-        .from_env_lossy()
-    )
-    .init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .init();
 
     let args: Vec<_> = env::args().collect();
     let (relay_chain, paras_to, bite_method) = cli::parse(args);
@@ -354,7 +353,6 @@ async fn main() {
         config::BiteMethod::Fork => main_inner(relay_chain, paras_to).await,
     }
 }
-
 
 pub async fn main_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
     info!(

@@ -30,10 +30,10 @@ use zombienet_support::fs::local::LocalFileSystem;
 
 use crate::utils::{para_head_key, HeadData};
 
+use crate::config::{Context, Parachain, Relaychain};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use crate::sync::{sync_para, sync_relay_only};
 use crate::utils::get_random_port;
-use crate::config::{Context, Parachain, Relaychain};
 
 #[derive(Debug, Clone)]
 struct ChainArtifact {
@@ -44,9 +44,7 @@ struct ChainArtifact {
     override_wasm: Option<String>,
 }
 
-
 pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
-
     // Star the node and wait until finish (with temp dir managed by us)
     info!(
         "🪞 Starting DoppelGanger process for {} and {:?}",
@@ -420,9 +418,8 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_snap() {
         let snap_path = "/tmp/zombie-bite_1726677980197/snap.tgz";
-        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path)
-            .await;
-            // .unwrap();
+        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path).await;
+        // .unwrap();
         println!("{:?}", demo);
         // let _n = spawn(provider, chain_spec_path, snap_path).await.unwrap();
     }

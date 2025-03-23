@@ -10,7 +10,9 @@ pub enum BiteMethod {
 }
 
 impl<T> From<T> for BiteMethod
-where T: AsRef<str> {
+where
+    T: AsRef<str>,
+{
     fn from(s: T) -> Self {
         if s.as_ref() == "fork-off" {
             BiteMethod::Fork
@@ -19,7 +21,6 @@ where T: AsRef<str> {
         }
     }
 }
-
 
 #[derive(Debug, PartialEq)]
 pub enum Context {
