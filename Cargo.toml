@@ -6,11 +6,11 @@ default-run = "zombie-bite"
 
 
 [dependencies]
-zombienet-sdk = "0.2"
-zombienet-provider = "0.2"
-zombienet-orchestrator = "0.2"
-zombienet-support = "0.2"
-zombienet-configuration = "0.2"
+zombienet-sdk = "0.2.29"
+zombienet-provider = "0.2.29"
+zombienet-orchestrator = "0.2.29"
+zombienet-support = "0.2.29"
+zombienet-configuration = "0.2.29"
 tokio = "1"
 reqwest = "0.12"
 tracing-subscriber = "0.3.18"
@@ -42,9 +42,9 @@ path = "src/doppelganger_cli.rs"
 name = "spawn"
 path = "src/from_toml.rs"
 
-[patch.crates-io]
-zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
-zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
-zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }
-zombienet-support = { path = "../zombienet-sdk/crates/support" }
-zombienet-sdk = { path = "../zombienet-sdk/crates/sdk" }
+# [patch.crates-io]
+# zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
+# zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
+# zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }
+# zombienet-support = { path = "../zombienet-sdk/crates/support" }
+# zombienet-sdk = { path = "../zombienet-sdk/crates/sdk" }
