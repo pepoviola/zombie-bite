@@ -2,7 +2,9 @@
 // TODO: don't allow dead_code
 
 use std::{
-    io::{self, Write}, path::{Path, PathBuf}, time::Duration
+    io::{self, Write},
+    path::PathBuf,
+    time::Duration,
 };
 
 use crate::utils::get_random_port;
@@ -18,11 +20,12 @@ pub async fn sync_relay_only(
     cmd: impl AsRef<str>,
     chain: impl AsRef<str>,
     para_heads_env: Vec<(String, String)>,
+    overrides_path: PathBuf,
 ) -> Result<(DynNode, String, String), ()> {
     debug!("paras: \n {:?}", para_heads_env);
     let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
 
-    let env = if std::env::var("ZOMBIE_DUMP").is_ok() {
+    let mut env = if std::env::var("ZOMBIE_DUMP").is_ok() {
         [
             para_heads_env,
             vec![("ZOMBIE_DUMP".to_string(), "1".to_string())],
@@ -31,6 +34,10 @@ pub async fn sync_relay_only(
     } else {
         para_heads_env
     };
+
+    let rc_overrides_path = overrides_path.to_string_lossy().to_string();
+    env.push(("ZOMBIE_RC_OVERRIDES_PATH".to_string(), rc_overrides_path));
+    env.push(("RUST_LOG".into(), "doppelganger=debug".into()));
 
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node", cmd.as_ref())
@@ -47,6 +54,7 @@ pub async fn sync_relay_only(
         ])
         .env(env);
 
+    debug!("{:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
@@ -130,7 +138,12 @@ pub async fn sync_para(
     info!("✅ Synced (chain: {}), stopping node.", chain.as_ref());
     // we should just paused
     // sync_node.destroy().await.unwrap();
-    Ok((sync_node, sync_db_path, chain.as_ref().to_string(), para_head_path))
+    Ok((
+        sync_node,
+        sync_db_path,
+        chain.as_ref().to_string(),
+        para_head_path,
+    ))
 }
 
 // TODO: FIX terminal output on multiple tasks

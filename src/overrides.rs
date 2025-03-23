@@ -1,13 +1,16 @@
-use std::path::PathBuf;
-
+use crate::config::{Parachain, Relaychain};
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use tokio::fs;
-use zombienet_orchestrator::network::relaychain::Relaychain;
-use crate::config::{Context, Parachain};
 
-pub async fn generate_default_overrides_for_rc(base_dir: &str) -> PathBuf {
+pub async fn generate_default_overrides_for_rc(
+    base_dir: &str,
+    relay: &Relaychain,
+    paras: &Vec<Parachain>,
+) -> PathBuf {
+    // Keys to inject (mostly storage maps that are not present in the current state)
+    let mut injects = json!({});
     // <Pallet> < Item>
-
     // Validator Validators
     let mut overrides = json!({
         "7d9fe37370ac390779f35763d98106e888dcde934c658227ee1dfafcd6e16903": "08be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25ffe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e",
@@ -49,49 +52,129 @@ pub async fn generate_default_overrides_for_rc(base_dir: &str) -> PathBuf {
         "06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385": "0000300000500000aaaa020000001000fbff0000100000000a000000403800005802000003000000020000000000500000c800008000000000e8764817000000000000000000000000e87648170000000000000000000000e80300000090010080000000009001000c01002000000600c4090000000000000601983a00000000000040380000000600000058020000030000001900000000000000020000000200000002000000140000000100000008030100000014000000040000000105000000010000000100000000000000f401000080b2e60e80c3c90180b2e60e00000000000000000000000005000000",
         // paraScheduler availabilityCores (1 core, free)
         "94eadf0156a8ad5156507773d0471e4ab8ebad86f546c7e0b135a4212aace339": "0400",
+        // Sudo Key (Alice)
+        "5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b": "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
     });
 
     if let Some(override_wasm) = relay.wasm_overrides() {
-        let wasm_content = fs::read(override_wasm).await.expect(&format!("Error reading override_wasm from path {}", override_wasm));
+        let wasm_content = fs::read(override_wasm).await.expect(&format!(
+            "Error reading override_wasm from path {}",
+            override_wasm
+        ));
         overrides["3a636f6465"] = Value::String(hex::encode(wasm_content));
     }
 
+    // also check if any parachain includes a wasm override
+    for para in paras {
+        if let Some(override_wasm) = para.wasm_overrides() {
+            let wasm_content = fs::read(override_wasm).await.expect(&format!(
+                "Error reading override_wasm from path {}",
+                override_wasm
+            ));
+            let code_hash = hex::encode(subhasher::blake2_256(&wasm_content[..]));
+
+            // we should now override
+            let para_id_hash = crate::utils::para_id_hash(para.id());
+            // Paras.CurrentCodeHash(paraId)
+            let current_code_hash_prefix = array_bytes::bytes2hex(
+                "",
+                substorager::storage_value_key(&b"Paras"[..], b"CurrentCodeHash"),
+            );
+            overrides[&format!("{current_code_hash_prefix}{para_id_hash}")] =
+                Value::String(code_hash.clone());
+
+            // Paras.CodeByHash (should be injected since is have a reference to hash of the code itself)
+            let code_by_hash_prefix = array_bytes::bytes2hex(
+                "",
+                substorager::storage_value_key(&b"Paras"[..], b"CodeByHash"),
+            );
+            injects[&format!("{code_by_hash_prefix}{code_hash}")] =
+                Value::String(hex::encode(wasm_content));
+
+            // Paras.CodeByHashRefs (should be injected since is have a reference to hash of the code itself)
+            let code_by_hash_prefix = array_bytes::bytes2hex(
+                "",
+                substorager::storage_value_key(&b"Paras"[..], b"CodeByHashRefs"),
+            );
+            // hardcoded to 1 encoded
+            injects[&format!("{code_by_hash_prefix}{code_hash}")] =
+                Value::String("01000000".into());
+        }
+    }
+
+    let full_content = json!({
+        "overrides": overrides,
+        "injects": injects
+    });
+
     let file_path = PathBuf::from(format!("{base_dir}/rc_overrides.json"));
-    let contents = serde_json::to_string_pretty(&overrides).expect("Overrides should be valid.");
-    fs::write(&file_path, contents).await.expect("write file should works.");
+    let contents = serde_json::to_string_pretty(&full_content).expect("Overrides should be valid.");
+    fs::write(&file_path, contents)
+        .await
+        .expect("write file should works.");
     file_path
 }
 
-
 pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachain) -> PathBuf {
-    // <Pallet> < Item>
+    // Keys to inject (mostly storage maps that are not present in the current state)
+    let injects = json!({});
 
+    // <Pallet> < Item>
     // Validator Validators
     let mut overrides = json!({
-		// Session Validators
+        // Session Validators
         "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
-		//	Session QueuedKeys
+        //	Session QueuedKeys
         "cec5070d609dd3497f72bde07fc96ba0e0cdd062e6eaf24295ad4ccfc41d4609": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-		// Session keys for `collator`
+        // Session keys for `collator`
         "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
         "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
-		// CollatorSelection Invulnerables
+        // CollatorSelection Invulnerables
         "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "044cec53d80585625c427e909070de80016e629fa02e5cb373f3c4e94226417726",
-		// Aura authorities
+        // Aura authorities
         "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-		// AuraExt authorities
+        // AuraExt authorities
         "3c311d57d4daf52904616cf69648081e5e0621c4869aa60c02be9adcc98a0d1d": "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-		// parachainSystem lastDmqMqcHead (emtpy)
+        // parachainSystem lastDmqMqcHead (emtpy)
         "45323df7cc47150b3930e2666b0aa313911a5dd3f1155f5b7d0c5aa102a757f9": "0000000000000000000000000000000000000000000000000000000000000000",
     });
 
     if let Some(override_wasm) = para.wasm_overrides() {
-        let wasm_content = fs::read(override_wasm).await.expect(&format!("Error reading override_wasm from path {}", override_wasm));
+        let wasm_content = fs::read(override_wasm).await.expect(&format!(
+            "Error reading override_wasm from path {}",
+            override_wasm
+        ));
         overrides["3a636f6465"] = Value::String(hex::encode(wasm_content));
     }
 
-    let file_path = PathBuf::from(format!("{base_dir}/{}_overrides.json", para.id().to_string()));
-    let contents = serde_json::to_string_pretty(&overrides).expect("Overrides should be valid.");
-    fs::write(&file_path, contents).await.expect("write file should works.");
+    let full_content = json!({
+        "overrides": overrides,
+        "injects": injects
+    });
+
+    let file_path = PathBuf::from(format!(
+        "{base_dir}/{}_overrides.json",
+        para.id()
+    ));
+    let contents = serde_json::to_string_pretty(&full_content).expect("Overrides should be valid.");
+    fs::write(&file_path, contents)
+        .await
+        .expect("write file should works.");
     file_path
+}
+
+#[cfg(test)]
+mod test {
+    use super::generate_default_overrides_for_rc;
+
+    #[tokio::test]
+    async fn overrides_rc() {
+        let paras = vec![];
+        let _path = generate_default_overrides_for_rc(
+            "/tmp",
+            &crate::config::Relaychain::Polkadot(None),
+            &paras,
+        )
+        .await;
+    }
 }

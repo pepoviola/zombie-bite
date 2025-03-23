@@ -3,9 +3,8 @@
 
 use futures::future::try_join_all;
 use futures::FutureExt;
-use tokio::fs;
 use std::env;
-use std::fs::{File, read_to_string};
+use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -34,13 +33,13 @@ use utils::{para_head_key, HeadData};
 
 mod cli;
 mod config;
+mod overrides;
 mod sync;
 mod utils;
-mod overrides;
 
+use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use crate::sync::{sync_para, sync_relay_only};
 use crate::utils::get_random_port;
-use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use config::Context;
 
 #[derive(Debug, Clone)]
@@ -77,12 +76,13 @@ async fn main() {
         .await
         .unwrap();
 
-    let relaychain_rpc_random_port = get_random_port().await;
+    let _relaychain_rpc_random_port = get_random_port().await;
 
     // Parachain sync
     let mut syncs = vec![];
     for para in &paras_to {
-        let para_default_overrides_path = generate_default_overrides_for_para(&base_dir_str, para).await;
+        let para_default_overrides_path =
+            generate_default_overrides_for_para(&base_dir_str, para).await;
         syncs.push(
             sync_para(
                 ns.clone(),
@@ -103,7 +103,9 @@ async fn main() {
     let mut para_artifacts = vec![];
     let mut para_heads_env = vec![];
     let context_para = Context::Parachain;
-    for (para_index, (sync_node, sync_db_path, sync_chain, sync_head_path)) in res.into_iter().enumerate() {
+    for (para_index, (_sync_node, sync_db_path, sync_chain, sync_head_path)) in
+        res.into_iter().enumerate()
+    {
         let chain_spec_path = format!("{}/{}-spec.json", &base_dir_str, &sync_chain);
         generate_chain_spec(
             ns.clone(),
@@ -129,8 +131,9 @@ async fn main() {
         //     .expect("last line should be valid.")
         //     .to_string();
 
-
-        let para_head_str = read_to_string(&sync_head_path).expect(&format!("read para_head ({sync_head_path}) file should works."));
+        let para_head_str = read_to_string(&sync_head_path).expect(&format!(
+            "read para_head ({sync_head_path}) file should works."
+        ));
         let para_head_hex = if &para_head_str[..2] == "0x" {
             &para_head_str[2..]
         } else {
@@ -139,10 +142,13 @@ async fn main() {
 
         let para_head = array_bytes::bytes2hex(
             "0x",
-            HeadData(hex::decode(para_head_hex).expect("para_head should be a valid hex. qed")).encode(),
+            HeadData(hex::decode(para_head_hex).expect("para_head should be a valid hex. qed"))
+                .encode(),
         );
 
-        let para = paras_to.get(para_index).expect("para_index should be valid. qed");
+        let para = paras_to
+            .get(para_index)
+            .expect("para_index should be valid. qed");
         para_heads_env.push((
             format!("ZOMBIE_{}", &para_head_key(para.id())[2..]),
             format!("{}", &para_head[2..]),
@@ -152,18 +158,20 @@ async fn main() {
             cmd: context_para.cmd(),
             chain: sync_chain,
             spec_path: chain_spec_path,
-            snap_path: snap_path,
+            snap_path,
             override_wasm: para.wasm_overrides().map(str::to_string),
         });
     }
 
-    let rc_default_overrides_path = generate_default_overrides_for_rc(&base_dir_str).await;
+    let rc_default_overrides_path =
+        generate_default_overrides_for_rc(&base_dir_str, &relay_chain, &paras_to).await;
     // RELAYCHAIN sync
     let (sync_node, sync_db_path, sync_chain) = sync_relay_only(
         ns.clone(),
         "doppelganger",
         relay_chain.as_chain_string(),
         para_heads_env,
+        rc_default_overrides_path,
     )
     .await
     .unwrap();
@@ -218,7 +226,8 @@ async fn spawn(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
 ) -> Result<Network<LocalFileSystem>, String> {
-    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=debug,grandpa=debug,runtime=debug,consensus::common=trace,parachain=debug,sync=debug,sub-authority-discovery=trace"));
+    // sub-authority-discovery=trace
+    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=debug,grandpa=debug,runtime=debug,consensus::common=trace,parachain=debug,sync=debug"));
     let rpc_port = get_random_port().await;
     // config a new network with alice/bob
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
@@ -276,7 +285,7 @@ async fn spawn(
                         .with_name("collator")
                         .with_args(vec![
                             ("--relay-chain-rpc-urls", format!("ws://127.0.0.1:{rpc_port}").as_str()).into(),
-                            ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,sub-authority-discovery=trace").into(),
+                            ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug").into(),
                             "--force-authoring".into(),
                             "--discover-local".into(),
                             "--allow-private-ip".into(),
@@ -298,7 +307,7 @@ async fn spawn(
     // dump config
 
     let config_toml_path = format!("{}/config.toml", network.base_dir().unwrap());
-    _ = tokio::fs::write(config_toml_path, toml_config)
+    tokio::fs::write(config_toml_path, toml_config)
         .await
         .unwrap();
 
@@ -320,11 +329,11 @@ async fn spawn(
 async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), String> {
     info!("\n📝 Generating snapshot file {snap_path} with data_path {data_path}...");
 
-    let compressed_file = File::create(&snap_path).unwrap();
+    let compressed_file = File::create(snap_path).unwrap();
     let mut encoder = GzEncoder::new(compressed_file, Compression::fast());
 
     let mut archive = Builder::new(&mut encoder);
-    archive.append_dir_all("data", &data_path).unwrap();
+    archive.append_dir_all("data", data_path).unwrap();
     archive.finish().unwrap();
 
     info!("✅ generated with path {snap_path}");
@@ -394,7 +403,7 @@ async fn run_doppelganger_node(ns: DynNamespace, base_path: &Path) -> Result<(),
                     .as_str(),
                 ])
                 // Override rust log for sync
-                .env(vec![("RUST_LOG", "").into()]),
+                .env(vec![("RUST_LOG", "")]),
         )
         .await
         .unwrap()
@@ -422,9 +431,9 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_snap() {
         let snap_path = "/tmp/zombie-bite_1726677980197/snap.tgz";
-        let demo = generate_snap("/tmp/zombie-bite_1726677980197", &snap_path)
-            .await
-            .unwrap();
+        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path)
+            .await;
+            // .unwrap();
         println!("{:?}", demo);
         // let _n = spawn(provider, chain_spec_path, snap_path).await.unwrap();
     }

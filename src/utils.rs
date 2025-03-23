@@ -98,21 +98,41 @@ where
         .await
         .map_err(|_| anyhow!("Error creating file {}", path.as_ref().to_string_lossy()))?;
 
-    Ok(file
+    file
         .write_all(data)
         .await
-        .map_err(|_| anyhow!("Error writting file {}", path.as_ref().to_string_lossy()))?)
+        .map_err(|_| anyhow!("Error writting file {}", path.as_ref().to_string_lossy()))
 }
 
 pub fn para_head_key(para_id: u32) -> String {
     const PARAS_HEAD_PREFIX: &str =
         "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3";
-    let para_id: ParaId = para_id.into();
-    let para_id_hash = subhasher::twox64_concat(&para_id.encode());
-    let key = format!(
-        "{PARAS_HEAD_PREFIX}{}",
-        array_bytes::bytes2hex("", &para_id_hash)
-    );
+    // let para_id: ParaId = para_id.into();
+    let para_id_hash = para_id_hash(para_id);
+    format!("{PARAS_HEAD_PREFIX}{para_id_hash}")
+    // subhasher::twox64_concat(&para_id.encode());
+    // let key = format!(
+    //     "{PARAS_HEAD_PREFIX}{}",
+    //     array_bytes::bytes2hex("", &para_id_hash)
+    // );
 
-    key
+    // key
+}
+
+/// Returns the hash of the ParaId (without the 0x prefix)
+pub fn para_id_hash(para_id: u32) -> String {
+    let para_id: ParaId = para_id.into();
+    let para_id_hash = subhasher::twox64_concat(para_id.encode());
+    array_bytes::bytes2hex("", &para_id_hash)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn para_head_key_should_work() {
+        let para_id = 1000_u32;
+        let head_key = para_head_key(para_id);
+        assert_eq!(&head_key, "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3b6ff6f7d467b87a9e8030000");
+    }
 }
