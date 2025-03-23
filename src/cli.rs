@@ -1,8 +1,9 @@
-use crate::config::{Parachain, Relaychain};
+use crate::config::{BiteMethod, Parachain, Relaychain};
 
-pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>) {
+pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
+    println!("{:?}", args);
     let Some(relay) = args.get(1) else {
-        panic!("Relaychain argument must be present. qed");
+        panic!("Relaychain argument must be present. (Either polkadot or kusama");
     };
 
     // TODO: move to clap
@@ -54,5 +55,11 @@ pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>) {
 
     println!("rc: {:?}, paras: {:?}", relay_chain, paras_to);
 
-    (relay_chain, paras_to)
+    let bite_method = if let Some(method) = args.get(3) {
+        method.into()
+    } else {
+        BiteMethod::DoppelGanger
+    };
+
+    (relay_chain, paras_to, bite_method)
 }

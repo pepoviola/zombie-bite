@@ -4,6 +4,24 @@
 use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
 
 #[derive(Debug, PartialEq)]
+pub enum BiteMethod {
+    DoppelGanger,
+    Fork,
+}
+
+impl<T> From<T> for BiteMethod
+where T: AsRef<str> {
+    fn from(s: T) -> Self {
+        if s.as_ref() == "fork-off" {
+            BiteMethod::Fork
+        } else {
+            BiteMethod::DoppelGanger
+        }
+    }
+}
+
+
+#[derive(Debug, PartialEq)]
 pub enum Context {
     Relaychain,
     Parachain,

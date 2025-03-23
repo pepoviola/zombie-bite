@@ -3,7 +3,6 @@
 
 use futures::future::try_join_all;
 use futures::FutureExt;
-use std::env;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
@@ -29,18 +28,12 @@ use zombienet_provider::NativeProvider;
 use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
-use utils::{para_head_key, HeadData};
-
-mod cli;
-mod config;
-mod overrides;
-mod sync;
-mod utils;
+use crate::utils::{para_head_key, HeadData};
 
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use crate::sync::{sync_para, sync_relay_only};
 use crate::utils::get_random_port;
-use config::Context;
+use crate::config::{Context, Parachain, Relaychain};
 
 #[derive(Debug, Clone)]
 struct ChainArtifact {
@@ -51,12 +44,8 @@ struct ChainArtifact {
     override_wasm: Option<String>,
 }
 
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
 
-    let args: Vec<_> = env::args().collect();
-    let (relay_chain, paras_to) = cli::parse(args);
+pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
 
     // Star the node and wait until finish (with temp dir managed by us)
     info!(
