@@ -316,6 +316,13 @@ mod test {
     use codec::Encode;
 
     #[test]
+    fn encode_u32() {
+        let one = 1_u32;
+        let encoded = one.encode();
+        println!("{}", array_bytes::bytes2hex("0x", encoded));
+    }
+
+    #[test]
     fn twox256_works() {
         let idx: CoreIndex = 0.into();
         let zero = subhasher::twox256(idx.encode());
@@ -347,7 +354,7 @@ mod test {
         let head = "0x8a98384334fa4699a25a20227322f240d440bb2c80342cac1c3ba82999963cb15240c90177a61cae36ce0de8652e5e6d0a9a3e73d4fbeb736fc1c4e4b0c9b86e90c50eaf846fc952f36dc6a8f28f25e187fc7347c942c0960ce5acd2b0d4421cebdc6d790c0661757261204ed49808000000000452505352909cd3b9bdee77156c8e5c74e83dbbf7faaf5d66a98bf8dc630e56cf9c628157a27ebe8c05056175726101019ecb399a86c3536ff8e7ea65890d83655126c1e9673dbf31059b7d37a37e5c3dd70d329102ba7b876c0b463547ba021a7c4aefe706b441012a26dc1b950f0c00";
 
         // let head = "0xa8b352f2abae4d6761e27903d21c0b0ef82b19f88a669fb2d8e0dac8f6cec0f61addc801ba0cf1c2c5d8b9a9a6e61b812acb484d1a39180c5c0e1441150e93917b6d8474765ccf155e57e445bd443b8dcdd09400cdeb6d2d5a728106f87ebd3cb38b076d0c06617572612064bb980800000000045250535290bcff4cafc894eec61315567012c193803e1f49d990b04e95cc570e5a31c8a9cf4ef78b050561757261010134c68400fe59c0c9e5cfdc6b6868f654055b3c2046a3486945b1c8e3176411f4332dadd7bac02296420b036b77ab921f8aba089052c80a20e54f02a19d1a2203";
-        "0x432a9ed9f85634d93ae6a05d0a451fe3e23b78c06d5bb30829d36067dc2127ea223bc9013f1250bd5b953710939adf755ce591a825c30ae04017e7f62a14cbac0b3b69cd563957aef72d5220cd5f2bd5c0efccadca9a47342136d68991c42052f6ff0f7c0c066175726120f7d29808000000000452505352905246b49bce4cd6943e60d1f886182f755733a6c25006d3cff34b7f50d66cf157d2b38c05056175726101013f39cf0bdc7cf05c11801829c0fb253a3493c2cc90bb9eb1858e7bf0a047e39f8dd89f6a8221599a94c31a2a2820d50c09ecd36a048dec83515906e85274dd0e";
+        // "0x432a9ed9f85634d93ae6a05d0a451fe3e23b78c06d5bb30829d36067dc2127ea223bc9013f1250bd5b953710939adf755ce591a825c30ae04017e7f62a14cbac0b3b69cd563957aef72d5220cd5f2bd5c0efccadca9a47342136d68991c42052f6ff0f7c0c066175726120f7d29808000000000452505352905246b49bce4cd6943e60d1f886182f755733a6c25006d3cff34b7f50d66cf157d2b38c05056175726101013f39cf0bdc7cf05c11801829c0fb253a3493c2cc90bb9eb1858e7bf0a047e39f8dd89f6a8221599a94c31a2a2820d50c09ecd36a048dec83515906e85274dd0e";
         let para_head =
             array_bytes::bytes2hex("0x", HeadData(hex::decode(&head[2..]).unwrap()).encode());
         println!("asset-hub(1000) : {}", key);
@@ -496,6 +503,18 @@ mod test {
             )
         );
 
+        println!(
+            "Paras_CurrentCodeHash {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Paras"[..], b"CurrentCodeHash")
+            )
+        );
+
+        println!(
+            "Sudo_Key {}",
+            array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Sudo"[..], b"Key"))
+        );
         println!("prefix: {prefix}");
         println!("invulnerables: {inv}");
     }
@@ -514,7 +533,7 @@ mod test {
 
     #[test]
     pub fn test_to_hex() {
-        println!("{}", "grandpa_voters");
+        println!("grandpa_voters");
         assert_eq!(hex::encode(b"grandpa_voters"), "666f6f626172");
     }
 

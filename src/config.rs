@@ -180,14 +180,15 @@ mod test {
 
     #[test]
     fn config_ok() {
-        let config = generate_network_config(&Relaychain::Kusama, vec![]).unwrap();
+        let config = generate_network_config(&Relaychain::Kusama(None), vec![]).unwrap();
         assert_eq!(0, config.parachains().len());
     }
 
     #[test]
     fn config_with_para_ok() {
         let config =
-            generate_network_config(&Relaychain::Kusama, vec![Parachain::Coretime]).unwrap();
+            generate_network_config(&Relaychain::Kusama(None), vec![Parachain::Coretime(None)])
+                .unwrap();
         let parachain = config.parachains().first().unwrap().chain().unwrap();
         assert_eq!(parachain.as_str(), "coretime-kusama-local");
     }
@@ -195,7 +196,8 @@ mod test {
     #[tokio::test]
     async fn spec() {
         let config =
-            generate_network_config(&Relaychain::Kusama, vec![Parachain::AssetHub]).unwrap();
+            generate_network_config(&Relaychain::Kusama(None), vec![Parachain::AssetHub(None)])
+                .unwrap();
         println!("config: {:#?}", config);
         let spec = zombienet_orchestrator::NetworkSpec::from_config(&config)
             .await

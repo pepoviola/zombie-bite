@@ -11,7 +11,7 @@ async fn main() {
     let args: Vec<_> = env::args().collect();
     println!("{:?}", args);
 
-    if args.len() < 1 {
+    if args.is_empty() {
         panic!(
             "Missing argument (config.toml):
         \t cargo run --bin cli <config.toml>
@@ -20,7 +20,7 @@ async fn main() {
     }
 
     let toml_path = &args[1];
-    let config = zombienet_configuration::NetworkConfig::load_from_toml(&toml_path).unwrap();
+    let config = zombienet_configuration::NetworkConfig::load_from_toml(toml_path).unwrap();
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
     let orchestrator = Orchestrator::new(filesystem, provider);
