@@ -32,7 +32,7 @@ sp-core = "34.0.0"
 
 [[bin]]
 name = "doppelganger"
-path = "src/doppelganger.rs"
+path = "src/doppelganger_cli.rs"
 
 # [[bin]]
 # name = "regular"
