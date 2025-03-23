@@ -153,10 +153,7 @@ pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachai
         "injects": injects
     });
 
-    let file_path = PathBuf::from(format!(
-        "{base_dir}/{}_overrides.json",
-        para.id()
-    ));
+    let file_path = PathBuf::from(format!("{base_dir}/{}_overrides.json", para.id()));
     let contents = serde_json::to_string_pretty(&full_content).expect("Overrides should be valid.");
     fs::write(&file_path, contents)
         .await
