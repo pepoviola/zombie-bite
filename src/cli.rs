@@ -3,22 +3,18 @@ use crate::config::{BiteMethod, Parachain, Relaychain};
 pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
     println!("{:?}", args);
     let Some(relay) = args.get(1) else {
-        panic!("Relaychain argument must be present. (Either polkadot or kusama");
+        panic!("Relaychain argument must be present... [polkadot | kusama |westend]");
     };
 
     // TODO: move to clap
     let parts: Vec<&str> = relay.split(':').collect();
     let relaychain = parts.first().expect("relaychain should be valid");
     let wasm_overrides = parts.get(1).map(|path| path.to_string());
-    // if let Some(path) = parts.get(1) {
-    //     Some(path.to_string())
-    // } else {
-    //     None
-    // };
 
     let relay_chain = match *relaychain {
         "polkadot" => Relaychain::Polkadot(wasm_overrides),
         "kusama" => Relaychain::Kusama(wasm_overrides),
+        "westend" => Relaychain::Westend(wasm_overrides),
         _ => {
             let msg =
                 format!("Invalid network, should be one of 'polkadot, kusama', you pass: {relay}");
@@ -40,11 +36,6 @@ pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
                 let parts: Vec<&str> = para.split(':').collect();
                 let parachain = parts.first().expect("chain should be valid");
                 let wasm_overrides = parts.get(1).map(|path| path.to_string());
-                // if let Some(path) = parts.get(1) {
-                //     Some(path.to_string())
-                // } else {
-                //     None
-                // };
 
                 match *parachain {
                     "asset-hub" => paras_to.push(Parachain::AssetHub(wasm_overrides)),

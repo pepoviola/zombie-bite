@@ -3,7 +3,6 @@
 
 use futures::future::try_join_all;
 use futures::{FutureExt, StreamExt};
-use zombienet_sdk::subxt::OnlineClient;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
