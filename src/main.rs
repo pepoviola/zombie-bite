@@ -335,7 +335,7 @@ async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(

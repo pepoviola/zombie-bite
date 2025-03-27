@@ -2,7 +2,8 @@
 // TODO: don't allow dead_code
 
 use futures::future::try_join_all;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
+use zombienet_sdk::subxt::OnlineClient;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
@@ -198,14 +199,32 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
     };
 
-    let _network = spawn(provider, relay_artifacts, para_artifacts)
+    let network = spawn(provider, relay_artifacts, para_artifacts)
         .await
         .expect("Fail to spawn the new network");
+
     info!("🚀🚀🚀🚀 network deployed");
 
-    // For now let just loop....
-    #[allow(clippy::empty_loop)]
-    loop {}
+    if std::env::var("ZOMBIE_BITE_CI_PATH").is_ok() {
+        // ensure block production and move artifacts to make it reusable
+        let client = network
+        .get_node("alice").unwrap()
+        .wait_client::<zombienet_sdk::subxt::PolkadotConfig>()
+        .await.unwrap();
+        let mut blocks = client.blocks().subscribe_finalized().await.unwrap().take(3);
+
+        while let Some(block) = blocks.next().await {
+            println!("Block #{}", block.unwrap().header().number);
+        }
+
+        info!("teardown network...");
+        // shutdown the network
+        // network.destroy().await.unwrap();
+    } else {
+        // For now let just loop....
+        #[allow(clippy::empty_loop)]
+        loop {}
+    }
 }
 
 async fn spawn(
@@ -213,16 +232,27 @@ async fn spawn(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
 ) -> Result<Network<LocalFileSystem>, String> {
-    // sub-authority-discovery=trace
     let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=debug,grandpa=debug,runtime=debug,consensus::common=trace,parachain=debug,sync=debug"));
+
+    let (chain_spec_path, db_path)  = if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
+        let chain_spec_path = PathBuf::from(relaychain.spec_path.as_str());
+        let db_path =  PathBuf::from(relaychain.snap_path.as_str());
+        let new_chain_spec_path = PathBuf::from(&format!("{ci_path}/{}",chain_spec_path.file_name().unwrap().to_string_lossy()));
+        let new_db_path = PathBuf::from(&format!("{ci_path}/{}",db_path.file_name().unwrap().to_string_lossy()));
+        tokio::fs::rename(chain_spec_path, &new_chain_spec_path).await.unwrap();
+        tokio::fs::rename(db_path, &new_db_path).await.unwrap();
+        (new_chain_spec_path, new_db_path)
+    } else {
+         (PathBuf::from(relaychain.spec_path.as_str()), PathBuf::from(relaychain.snap_path.as_str()))
+    };
     let rpc_port = get_random_port().await;
     // config a new network with alice/bob
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
         let mut relay_builder = r
             .with_chain(relaychain.chain.as_str())
             .with_default_command(relaychain.cmd.as_str())
-            .with_chain_spec_path(PathBuf::from(relaychain.spec_path.as_str()))
-            .with_default_db_snapshot(PathBuf::from(relaychain.snap_path.as_str()))
+            .with_chain_spec_path(chain_spec_path)
+            .with_default_db_snapshot(db_path)
             .with_default_args(vec![
                 ("-l", leaked_rust_log.as_str()).into(),
                 "--discover-local".into(),
@@ -255,12 +285,24 @@ async fn spawn(
             // .with_default_db_snapshot(PathBuf::from(para.snap_path.as_str()))
             // .with_collator(|c| c.with_name("col-1000"));
 
+            let (chain_spec_path, db_path)  = if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
+                let chain_spec_path = PathBuf::from(para.spec_path.as_str());
+                let db_path =  PathBuf::from(para.snap_path.as_str());
+                let new_chain_spec_path = PathBuf::from(&format!("{ci_path}/{}",chain_spec_path.file_name().unwrap().to_string_lossy()));
+                let new_db_path = PathBuf::from(&format!("{ci_path}/{}",db_path.file_name().unwrap().to_string_lossy()));
+                tokio::fs::rename(chain_spec_path, &new_chain_spec_path).await.unwrap();
+                tokio::fs::rename(db_path, &new_db_path).await.unwrap();
+                (new_chain_spec_path, new_db_path)
+            } else {
+                 (PathBuf::from(relaychain.spec_path.as_str()), PathBuf::from(relaychain.snap_path.as_str()))
+            };
+
             config = config.with_parachain(|p|{
                 let mut para_builder = p.with_id(1000)
                 .with_chain(para.chain.as_str())
                 .with_default_command(para.cmd.as_str())
-                .with_chain_spec_path(PathBuf::from(para.spec_path.as_str()))
-                .with_default_db_snapshot(PathBuf::from(para.snap_path.as_str()));
+                .with_chain_spec_path(chain_spec_path)
+                .with_default_db_snapshot(db_path);
                 para_builder = if let Some(override_path) = para.override_wasm {
                     para_builder.with_wasm_override(override_path.as_str())
                 } else {
@@ -283,7 +325,8 @@ async fn spawn(
         }
     }
 
-    let network_config = config.build().unwrap();
+
+    let network_config= config.build().unwrap();
 
     // spawn the network
     let filesystem = LocalFileSystem;
@@ -291,9 +334,14 @@ async fn spawn(
     let toml_config = network_config.dump_to_toml().unwrap();
 
     let network = orchestrator.spawn(network_config).await.unwrap();
-    // dump config
 
-    let config_toml_path = format!("{}/config.toml", network.base_dir().unwrap());
+    // dump config
+    let config_toml_path = if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
+        format!("{ci_path}/config.toml")
+    } else {
+        format!("{}/config.toml", network.base_dir().unwrap())
+    };
+
     tokio::fs::write(config_toml_path, toml_config)
         .await
         .unwrap();

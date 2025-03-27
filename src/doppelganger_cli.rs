@@ -11,7 +11,7 @@ mod overrides;
 mod sync;
 mod utils;
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
