@@ -44,6 +44,7 @@ type MaybeWasmOverridePath = Option<String>;
 pub enum Relaychain {
     Polkadot(MaybeWasmOverridePath),
     Kusama(MaybeWasmOverridePath),
+    Westend(MaybeWasmOverridePath),
 }
 
 impl Relaychain {
@@ -51,6 +52,7 @@ impl Relaychain {
         String::from(match self {
             Relaychain::Polkadot(_) => "polkadot-local",
             Relaychain::Kusama(_) => "kusama-local",
+            Relaychain::Westend(_) => "westend-local",
         })
     }
 
@@ -58,6 +60,7 @@ impl Relaychain {
         String::from(match self {
             Relaychain::Polkadot(_) => "polkadot",
             Relaychain::Kusama(_) => "kusama",
+            Relaychain::Westend(_) => "westend",
         })
     }
 
@@ -67,7 +70,9 @@ impl Relaychain {
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Relaychain::Kusama(x) | Relaychain::Polkadot(x) => x.as_deref(),
+            Relaychain::Kusama(x) |
+            Relaychain::Polkadot(x) |
+            Relaychain::Westend(x)=> x.as_deref(),
         }
     }
 }
