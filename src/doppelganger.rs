@@ -293,7 +293,7 @@ async fn spawn(
                 tokio::fs::rename(db_path, &new_db_path).await.unwrap();
                 (new_chain_spec_path, new_db_path)
             } else {
-                 (PathBuf::from(relaychain.spec_path.as_str()), PathBuf::from(relaychain.snap_path.as_str()))
+                 (PathBuf::from(para.spec_path.as_str()), PathBuf::from(para.snap_path.as_str()))
             };
 
             config = config.with_parachain(|p|{
