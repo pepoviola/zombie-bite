@@ -1,10 +1,18 @@
 use crate::config::{BiteMethod, Parachain, Relaychain};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
     println!("{:?}", args);
     let Some(relay) = args.get(1) else {
         panic!("Relaychain argument must be present... [polkadot | kusama |westend]");
     };
+
+    // print version with --version
+    if relay == "--version" {
+        println!("zombie-bite v{}", VERSION);
+        std::process::exit(0);
+    }
 
     // TODO: move to clap
     let parts: Vec<&str> = relay.split(':').collect();
