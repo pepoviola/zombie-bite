@@ -235,19 +235,28 @@ async fn spawn(
 
     let (chain_spec_path, db_path)  = if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
         let chain_spec_path = PathBuf::from(relaychain.spec_path.as_str());
+        let chain_spec_filename = chain_spec_path.file_name().unwrap().to_string_lossy().to_string();
+
         let db_path =  PathBuf::from(relaychain.snap_path.as_str());
-        let new_chain_spec_path = PathBuf::from(&format!("{ci_path}/{}",chain_spec_path.file_name().unwrap().to_string_lossy()));
-        let new_db_path = PathBuf::from(&format!("{ci_path}/{}",db_path.file_name().unwrap().to_string_lossy()));
+        let db_path_filename = db_path.file_name().unwrap().to_string_lossy().to_string();
+
+        let new_chain_spec_path = PathBuf::from(&format!("{ci_path}/{}",chain_spec_filename));
+        let new_db_path = PathBuf::from(&format!("{ci_path}/{}",db_path_filename));
+
         tokio::fs::rename(chain_spec_path, &new_chain_spec_path).await.unwrap();
         tokio::fs::rename(db_path, &new_db_path).await.unwrap();
-        (new_chain_spec_path, new_db_path)
+
+        (
+            PathBuf::from(format!("./{}", chain_spec_filename)),
+            PathBuf::from(format!("./{}", db_path_filename))
+        )
     } else {
          (PathBuf::from(relaychain.spec_path.as_str()), PathBuf::from(relaychain.snap_path.as_str()))
     };
     let rpc_port = get_random_port().await;
     // config a new network with alice/bob
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
-        let mut relay_builder = r
+        let relay_builder = r
             .with_chain(relaychain.chain.as_str())
             .with_default_command(relaychain.cmd.as_str())
             .with_chain_spec_path(chain_spec_path)
@@ -259,11 +268,13 @@ async fn spawn(
                 "--no-hardware-benchmarks".into(),
             ]);
 
-        relay_builder = if let Some(override_path) = relaychain.override_wasm {
-            relay_builder.with_wasm_override(override_path.as_str())
-        } else {
-            relay_builder
-        };
+
+        // We override the code directly in the db
+        // relay_builder = if let Some(override_path) = relaychain.override_wasm {
+        //     relay_builder.with_wasm_override(override_path.as_str())
+        // } else {
+        //     relay_builder
+        // };
 
         relay_builder
             .with_node(|node| node.with_name("alice").with_rpc_port(rpc_port))
