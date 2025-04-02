@@ -1,6 +1,6 @@
 use crate::config::{Parachain, Relaychain};
 use serde_json::{json, Value};
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 use tokio::fs;
 
 pub async fn generate_default_overrides_for_rc(
@@ -56,6 +56,10 @@ pub async fn generate_default_overrides_for_rc(
         // Sudo Key (Alice)
         "5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b": "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
     });
+
+    if let Ok(sudo_key) = env::var("ZOMBIE_SUDO") {
+        overrides["5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b"] = Value::String(sudo_key);
+    }
 
     if let Some(override_wasm) = relay.wasm_overrides() {
         let wasm_content = fs::read(override_wasm).await.expect(&format!(
