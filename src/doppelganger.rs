@@ -3,6 +3,7 @@
 
 use futures::future::try_join_all;
 use futures::{FutureExt, StreamExt};
+use tokio::fs;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
@@ -70,6 +71,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     for para in &paras_to {
         let para_default_overrides_path =
             generate_default_overrides_for_para(&base_dir_str, para).await;
+        let info_path = format!("{base_dir_str}/para-{}.txt", para.id());
         syncs.push(
             sync_para(
                 ns.clone(),
@@ -79,6 +81,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
                 // TODO: make this endpoint configurable
                 "wss://polkadot-rpc.dwellir.com",
                 para_default_overrides_path,
+                info_path
             )
             .boxed(),
         );
@@ -152,6 +155,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
 
     let rc_default_overrides_path =
         generate_default_overrides_for_rc(&base_dir_str, &relay_chain, &paras_to).await;
+    let rc_info_path =  format!("{base_dir_str}/rc_info.txt");
     // RELAYCHAIN sync
     let (sync_node, sync_db_path, sync_chain) = sync_relay_only(
         ns.clone(),
@@ -159,6 +163,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         relay_chain.as_chain_string(),
         para_heads_env,
         rc_default_overrides_path,
+        &rc_info_path
     )
     .await
     .unwrap();
@@ -204,7 +209,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
 
     info!("🚀🚀🚀🚀 network deployed");
 
-    if std::env::var("ZOMBIE_BITE_CI_PATH").is_ok() {
+    if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
         // ensure block production and move artifacts to make it reusable
         let client = network
         .get_node("alice").unwrap()
@@ -216,6 +221,8 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
             println!("Block #{}", block.unwrap().header().number);
         }
 
+        // copy rc info to this directory
+        fs::copy(rc_info_path, format!("{ci_path}/rc-info.txt")).await.expect("copy file for ci should works.");
         info!("teardown network...");
         // shutdown the network
         // network.destroy().await.unwrap();
