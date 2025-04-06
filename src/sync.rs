@@ -21,6 +21,7 @@ pub async fn sync_relay_only(
     chain: impl AsRef<str>,
     para_heads_env: Vec<(String, String)>,
     overrides_path: PathBuf,
+    info_path: impl AsRef<str>,
 ) -> Result<(DynNode, String, String), ()> {
     debug!("paras: \n {:?}", para_heads_env);
     let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
@@ -38,6 +39,7 @@ pub async fn sync_relay_only(
     let rc_overrides_path = overrides_path.to_string_lossy().to_string();
     env.push(("ZOMBIE_RC_OVERRIDES_PATH".to_string(), rc_overrides_path));
     env.push(("RUST_LOG".into(), "doppelganger=debug".into()));
+    env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
 
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node", cmd.as_ref())
@@ -76,6 +78,7 @@ pub async fn sync_para(
     relaychain: impl AsRef<str>,
     relaychain_endpoint: &str,
     overrides_path: PathBuf,
+    info_path: impl AsRef<str>,
 ) -> Result<(DynNode, String, String, String), ()> {
     let sync_db_path = format!(
         "{}/paras/{}/sync-db",
@@ -101,6 +104,7 @@ pub async fn sync_para(
     env.push(("ZOMBIE_PARA_OVERRIDES_PATH", &para_overrides_path));
     env.push(("ZOMBIE_PARA_HEAD_PATH", &para_head_path));
     env.push(("RUST_LOG", "doppelganger=debug"));
+    env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
 
     println!("env: {env:?}");
 

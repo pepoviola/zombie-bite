@@ -307,6 +307,72 @@ pub struct HeadData(pub Vec<u8>);
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
 pub struct MessageQueueChain(pub sp_core::H256);
 
+/// Type used to encode the number of references an account has.
+pub type RefCount = u32;
+
+/// Index of a transaction in the relay chain. 32-bit should be plenty.
+pub type Nonce = u32;
+
+/// The balance of an account.
+/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a
+/// resolution to all for one second's worth of an annualised 50% reward be paid to a unit holder
+/// (`10^11` unit denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years
+/// (`10^9` multiplier) for an eventual total of `10^27` units (27 significant decimal figures).
+/// We round denomination to `10^12` (12 SDF), and leave the other redundancy at the upper end so
+/// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
+pub type Balance = u128;
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+pub struct ExtraFlags(pub(crate) u128);
+
+const IS_NEW_LOGIC: u128 = 0x80000000_00000000_00000000_00000000u128;
+
+impl Default for ExtraFlags {
+	fn default() -> Self {
+		Self(IS_NEW_LOGIC)
+	}
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
+pub struct AccountData {
+	/// Non-reserved part of the balance which the account holder may be able to control.
+	///
+	/// This is the only balance that matters in terms of most operations on tokens.
+	pub free: Balance,
+	/// Balance which is has active holds on it and may not be used at all.
+	///
+	/// This is the sum of all individual holds together with any sums still under the (deprecated)
+	/// reserves API.
+	pub reserved: Balance,
+	/// The amount that `free + reserved` may not drop below when reducing the balance, except for
+	/// actions where the account owner cannot reasonably benefit from the balance reduction, such
+	/// as slashing.
+	pub frozen: Balance,
+	/// Extra information about this account. The MSB is a flag indicating whether the new ref-
+	/// counting logic is in place for this account.
+	pub flags: ExtraFlags,
+}
+
+/// Information of an account.
+#[derive(Clone, Eq, PartialEq, Default, Encode, Decode, Debug)]
+pub struct AccountInfo {
+	/// The number of transactions this account has sent.
+	pub nonce: Nonce,
+	/// The number of other modules that currently depend on this account's existence. The account
+	/// cannot be reaped until this is zero.
+	pub consumers: RefCount,
+	/// The number of other modules that allow this account to exist. The account may not be reaped
+	/// until this and `sufficients` are both zero.
+	pub providers: RefCount,
+	/// The number of modules that allow this account to exist for their own purposes only. The
+	/// account may not be reaped until this and `providers` are both zero.
+	pub sufficients: RefCount,
+	/// The additional data that belongs to this account. Used to store the balance(s) in a lot of
+	/// chains.
+	pub data: AccountData,
+}
+
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -314,6 +380,25 @@ mod test {
     use super::ParaId;
     use crate::{config, fork_off::ForkOffConfig};
     use codec::Encode;
+
+    #[test]
+    fn account_info() {
+        let d: Vec<u8>  = hex::decode("2900000002000000010000000000000070a95481242d000000000000000000000086c46b5d000000000000000000000000203d88792d0000000000000000000000000000000000000000000000000080").unwrap();
+        //  array_bytes::hex2array("0x").unwrap().to_vec()
+        let mut a: AccountInfo = AccountInfo::decode(&mut d.as_slice()).unwrap();
+        println!("{a:?}");
+
+        a.data.free -= 10_000_000_000_000;
+        println!("{a:?}");
+
+     let mut alice = AccountInfo::default();
+     alice.providers = 1;
+     alice.data.free =  10_000_000_000_000;
+     println!("{alice:?}");
+
+     let alice_enc = alice.encode();
+     println!("{alice_enc:?}");
+    }
 
     #[test]
     fn encode_u32() {
