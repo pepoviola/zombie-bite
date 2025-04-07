@@ -350,6 +350,9 @@ async fn spawn(
     let orchestrator = Orchestrator::new(filesystem, provider);
     let toml_config = network_config.dump_to_toml().unwrap();
 
+    if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
+        std::env::set_current_dir(&ci_path).expect("change current dir to ci should works");
+    }
     let network = orchestrator.spawn(network_config).await.unwrap();
 
     // dump config
