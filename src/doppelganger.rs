@@ -304,12 +304,21 @@ async fn spawn(
 
             let (chain_spec_path, db_path)  = if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
                 let chain_spec_path = PathBuf::from(para.spec_path.as_str());
+                let chain_spec_filename = chain_spec_path.file_name().unwrap().to_string_lossy().to_string();
+
                 let db_path =  PathBuf::from(para.snap_path.as_str());
-                let new_chain_spec_path = PathBuf::from(&format!("{ci_path}/{}",chain_spec_path.file_name().unwrap().to_string_lossy()));
-                let new_db_path = PathBuf::from(&format!("{ci_path}/{}",db_path.file_name().unwrap().to_string_lossy()));
+                let db_path_filename = db_path.file_name().unwrap().to_string_lossy().to_string();
+
+                let new_chain_spec_path = PathBuf::from(&format!("{ci_path}/{}",chain_spec_filename));
+                let new_db_path = PathBuf::from(&format!("{ci_path}/{}",db_path_filename));
+
                 tokio::fs::rename(chain_spec_path, &new_chain_spec_path).await.unwrap();
                 tokio::fs::rename(db_path, &new_db_path).await.unwrap();
-                (new_chain_spec_path, new_db_path)
+
+                (
+                    PathBuf::from(format!("./{}", chain_spec_filename)),
+                    PathBuf::from(format!("./{}", db_path_filename))
+                )
             } else {
                  (PathBuf::from(para.spec_path.as_str()), PathBuf::from(para.snap_path.as_str()))
             };
