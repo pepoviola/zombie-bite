@@ -238,7 +238,7 @@ async fn spawn(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
 ) -> Result<Network<LocalFileSystem>, String> {
-    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=debug,grandpa=debug,runtime=debug,consensus::common=trace,parachain=debug,sync=debug"));
+    let leaked_rust_log = std::env::var("RUST_LOG").unwrap_or_else(|_| String::from("babe=trace,grandpa=info,runtime=trace,consensus::common=trace,parachain=debug"));
 
     let (chain_spec_path, db_path)  = if let Ok(ci_path) = std::env::var("ZOMBIE_BITE_CI_PATH") {
         let chain_spec_path = PathBuf::from(relaychain.spec_path.as_str());
