@@ -141,8 +141,8 @@ pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachai
         // Session keys for `collator`
         "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
         "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
-        // CollatorSelection Invulnerables
-        "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "044cec53d80585625c427e909070de80016e629fa02e5cb373f3c4e94226417726",
+        // CollatorSelection Invulnerables (collator)
+        "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         // Aura authorities
         "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
         // AuraExt authorities
