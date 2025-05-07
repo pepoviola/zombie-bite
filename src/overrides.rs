@@ -17,10 +17,11 @@ pub async fn generate_default_overrides_for_rc(
         "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb30e5be00fbc2e15b5fe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e": "d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae698eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a480390084fdbf27d2b79d26a4f13f0ccd982cb755a661969143c37cbc49ef5b91f27"
     });
 
-    // <Pallet> < Item>
+    // <Pallet> <Item>
+    // e.g Validator Validators
 
-    // Validator Validators
     let mut overrides = json!({
+        // Validator Validators
         "7d9fe37370ac390779f35763d98106e888dcde934c658227ee1dfafcd6e16903": "08be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25ffe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e",
         // Session Validators (alice, bob)
         "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": "08be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25ffe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e",
@@ -129,18 +130,20 @@ pub async fn generate_default_overrides_for_rc(
 
 pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachain) -> PathBuf {
     // Keys to inject (mostly storage maps that are not present in the current state)
-    let injects = json!({});
+    let injects = json!({
+        // Session Nextkeys for `collator`
+        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        // Session KeyOwner
+        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+    });
 
-    // <Pallet> < Item>
-    // Validator Validators
+    // <Pallet> <Item>
+    // e.g Validator Validators
     let mut overrides = json!({
         // Session Validators
         "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         //	Session QueuedKeys
         "cec5070d609dd3497f72bde07fc96ba0e0cdd062e6eaf24295ad4ccfc41d4609": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-        // Session keys for `collator`
-        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         // CollatorSelection Invulnerables (collator)
         "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         // Aura authorities
