@@ -64,6 +64,15 @@ impl Relaychain {
         })
     }
 
+    // TODO: make this endpoints configurables
+    pub fn sync_endpoint(&self) -> String {
+        String::from(match self {
+            Relaychain::Polkadot(_) => "wss://polkadot-rpc.dwellir.com",
+            Relaychain::Kusama(_) => "wss://kusama-rpc.dwellir.com",
+            Relaychain::Westend(_) => "wss://westend-rpc.polkadot.io",
+        })
+    }
+
     pub fn context(&self) -> Context {
         Context::Relaychain
     }
@@ -155,11 +164,12 @@ pub fn generate_network_config(
             .with_default_command(relay_context.cmd().as_str())
             .with_chain_spec_command(chain_spec_cmd)
             .chain_spec_command_is_local(true)
-            .with_default_args(vec![("-l", "babe=debug,grandpa=debugruntime=debug,parachain::=debug,sub-authority-discovery=trace").into()])
+            // .with_default_args(vec![("-l", "babe=debug,grandpa=debug,runtime=debug,parachain::=debug,sub-authority-discovery=trace").into()])
+            .with_default_args(vec![("-l", "runtime=trace").into()])
             .with_node(|node| node.with_name(ALICE))
             .with_node(|node| node.with_name(BOB))
-            .with_node(|node| node.with_name(CHARLIE))
-            .with_node(|node| node.with_name(DAVE))
+            // .with_node(|node| node.with_name(CHARLIE))
+            // .with_node(|node| node.with_name(DAVE))
     });
 
     let network_builder = paras.iter().fold(network_builder, |builder, para| {

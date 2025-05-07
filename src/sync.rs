@@ -76,7 +76,7 @@ pub async fn sync_para(
     cmd: impl AsRef<str>,
     chain: impl AsRef<str>,
     relaychain: impl AsRef<str>,
-    relaychain_endpoint: &str,
+    relaychain_endpoint: impl AsRef<str>,
     overrides_path: PathBuf,
     info_path: impl AsRef<str>,
 ) -> Result<(DynNode, String, String, String), ()> {
@@ -121,7 +121,7 @@ pub async fn sync_para(
             "--prometheus-port",
             &metrics_random_port.to_string(),
             "--relay-chain-rpc-url",
-            relaychain_endpoint,
+            relaychain_endpoint.as_ref(),
             "--",
             "--chain",
             relaychain.as_ref(),
