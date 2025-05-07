@@ -1,7 +1,9 @@
 use crate::config::{Parachain, Relaychain};
+use codec::Encode;
 use serde_json::{json, Value};
 use std::{env, path::PathBuf};
 use tokio::fs;
+use crate::utils::ValidationCode;
 
 pub async fn generate_default_overrides_for_rc(
     base_dir: &str,
@@ -101,8 +103,10 @@ pub async fn generate_default_overrides_for_rc(
                 "",
                 substorager::storage_value_key(&b"Paras"[..], b"CodeByHash"),
             );
+            let validation_code: ValidationCode = ValidationCode(wasm_content);
+            let validation_code_encoded = validation_code.encode();
             injects[&format!("{code_by_hash_prefix}{code_hash}")] =
-                Value::String(hex::encode(wasm_content));
+                Value::String(hex::encode(validation_code_encoded));
 
             // Paras.CodeByHashRefs (should be injected since is have a reference to hash of the code itself)
             let code_by_hash_prefix = array_bytes::bytes2hex(

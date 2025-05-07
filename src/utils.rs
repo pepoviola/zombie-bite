@@ -8,6 +8,8 @@ use serde::de::DeserializeOwned;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use serde::{Deserialize, Serialize};
+use sp_core::bytes;
 
 use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 /// Parachain id.
@@ -39,6 +41,18 @@ impl From<u32> for ParaId {
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode)]
 pub struct HeadData(pub Vec<u8>);
+
+/// Parachain validation code.
+#[derive(
+	PartialEq,
+	Eq,
+	Clone,
+	Encode,
+	Decode,
+	Serialize,
+	Deserialize,
+)]
+pub struct ValidationCode(#[serde(with = "bytes")] pub Vec<u8>);
 
 pub async fn get_random_port() -> u16 {
     let listener = TcpListener::bind("0.0.0.0:0".to_string())
