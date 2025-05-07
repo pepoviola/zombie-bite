@@ -72,14 +72,14 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         let para_default_overrides_path =
             generate_default_overrides_for_para(&base_dir_str, para).await;
         let info_path = format!("{base_dir_str}/para-{}.txt", para.id());
+
         syncs.push(
             sync_para(
                 ns.clone(),
                 "doppelganger-parachain",
                 para.as_chain_string(&relay_chain.as_chain_string()),
                 relay_chain.as_chain_string(),
-                // TODO: make this endpoint configurable
-                "wss://polkadot-rpc.dwellir.com",
+                relay_chain.sync_endpoint(),
                 para_default_overrides_path,
                 info_path
             )
