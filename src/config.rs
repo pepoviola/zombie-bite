@@ -79,9 +79,9 @@ impl Relaychain {
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Relaychain::Kusama(x) |
-            Relaychain::Polkadot(x) |
-            Relaychain::Westend(x)=> x.as_deref(),
+            Relaychain::Kusama(x) | Relaychain::Polkadot(x) | Relaychain::Westend(x) => {
+                x.as_deref()
+            }
         }
     }
 }
@@ -168,8 +168,8 @@ pub fn generate_network_config(
             .with_default_args(vec![("-l", "runtime=trace").into()])
             .with_node(|node| node.with_name(ALICE))
             .with_node(|node| node.with_name(BOB))
-            // .with_node(|node| node.with_name(CHARLIE))
-            // .with_node(|node| node.with_name(DAVE))
+        // .with_node(|node| node.with_name(CHARLIE))
+        // .with_node(|node| node.with_name(DAVE))
     });
 
     let network_builder = paras.iter().fold(network_builder, |builder, para| {

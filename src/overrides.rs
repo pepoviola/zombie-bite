@@ -1,9 +1,9 @@
 use crate::config::{Parachain, Relaychain};
+use crate::utils::ValidationCode;
 use codec::Encode;
 use serde_json::{json, Value};
 use std::{env, path::PathBuf};
 use tokio::fs;
-use crate::utils::ValidationCode;
 
 pub async fn generate_default_overrides_for_rc(
     base_dir: &str,
@@ -68,7 +68,8 @@ pub async fn generate_default_overrides_for_rc(
     });
 
     if let Ok(sudo_key) = env::var("ZOMBIE_SUDO") {
-        overrides["5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b"] = Value::String(sudo_key);
+        overrides["5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b"] =
+            Value::String(sudo_key);
     }
 
     if let Some(override_wasm) = relay.wasm_overrides() {
