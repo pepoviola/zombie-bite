@@ -358,7 +358,7 @@ async fn spawn(
                 )
             };
 
-            let rpc_port: u16 = if let Ok(port) = env::var("ZOMBIE_BITE_AH_PORT") {
+            let para_rpc_port: u16 = if let Ok(port) = env::var("ZOMBIE_BITE_AH_PORT") {
                 port.parse()
                     .expect("env var ZOMBIE_BITE_AH_PORT must be a valid u16")
             } else {
@@ -380,7 +380,7 @@ async fn spawn(
                 para_builder.with_collator(|c|
                     c
                         .with_name("collator")
-                        .with_rpc_port(rpc_port)
+                        .with_rpc_port(para_rpc_port)
                         .with_args(vec![
                             ("--relay-chain-rpc-urls", format!("ws://127.0.0.1:{rpc_port}").as_str()).into(),
                             ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug").into(),
