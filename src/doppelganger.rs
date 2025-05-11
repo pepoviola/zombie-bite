@@ -371,11 +371,13 @@ async fn spawn(
                 .with_default_command(para.cmd.as_str())
                 .with_chain_spec_path(chain_spec_path)
                 .with_default_db_snapshot(db_path);
-                para_builder = if let Some(override_path) = para.override_wasm {
-                    para_builder.with_wasm_override(override_path.as_str())
-                } else {
-                    para_builder
-                };
+
+                // we override the runtime in the state now
+                // para_builder = if let Some(override_path) = para.override_wasm {
+                //     para_builder.with_wasm_override(override_path.as_str())
+                // } else {
+                //     para_builder
+                // };
 
                 para_builder.with_collator(|c|
                     c
