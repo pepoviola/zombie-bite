@@ -463,6 +463,28 @@ mod test {
             substorager::storage_value_key(&b"CollatorSelection"[..], b"Invulnerables"),
         );
         println!(
+            "CollatorSelection Invulnerables {inv}"
+        );
+
+        println!(
+            "CollatorSelection CandidateList {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"CollatorSelection"[..], b"CandidateList")
+            )
+         );
+
+         println!(
+            "CollatorSelection DesiredCandidates {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"CollatorSelection"[..], b"DesiredCandidates")
+            )
+         );
+
+
+
+        println!(
             "aura authorities{}",
             array_bytes::bytes2hex(
                 "0x",
@@ -495,6 +517,13 @@ mod test {
         println!(
             "session {}",
             array_bytes::bytes2hex("0x", subhasher::twox128(b"Session"))
+        );
+
+        println!(
+            "session NextKeys {}",
+            array_bytes::bytes2hex("0x",
+                substorager::storage_value_key(&b"Session"[..], b"NextKeys")
+            )
         );
         println!(
             "grandpa {}",
