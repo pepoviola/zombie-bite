@@ -157,6 +157,8 @@ pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachai
         "3c311d57d4daf52904616cf69648081e5e0621c4869aa60c02be9adcc98a0d1d": "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
         // parachainSystem lastDmqMqcHead (emtpy)
         "45323df7cc47150b3930e2666b0aa313911a5dd3f1155f5b7d0c5aa102a757f9": "0000000000000000000000000000000000000000000000000000000000000000",
+        // CollatorSelection DesiredCandidates (set to 1)
+        "15464cac3378d46f113cd5b7a4d71c84476f594316a7dfe49c1f352d95abdaf1": "01000000"
     });
 
     if let Some(override_wasm) = para.wasm_overrides() {
