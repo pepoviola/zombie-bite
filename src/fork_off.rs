@@ -155,7 +155,10 @@ fn clear_consensus(chain_spec: &mut ChainSpec, paras_heads: ParasHeads) {
             array_bytes::bytes2hex("", &para_id_hash)
         );
         let para_head =
-            array_bytes::bytes2hex("0x", HeadData(hex::decode(&head[2..]).unwrap()).encode());
+            array_bytes::bytes2hex(
+                "0x",
+                HeadData(hex::decode(&head[2..]).unwrap()).encode()
+            );
         debug!("key: {key}");
         debug!("value: {para_head}");
 
@@ -170,6 +173,16 @@ fn clear_consensus(chain_spec: &mut ChainSpec, paras_heads: ParasHeads) {
     top.remove(
         &substorager::storage_value_key(&b"ParaScheduler"[..], b"SessionStartBlock").to_string(),
     );
+    // dmp downwardMessageQueueHeads (empty for para 1000)
+    top.insert(
+        "0x63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5b6ff6f7d467b87a9e8030000".into(),
+        "0x0000000000000000000000000000000000000000000000000000000000000000".into()
+    );
+    // hrmp hrmpIngressChannelsIndex (empty for para 1000)
+    top.insert(
+        "0x6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948b6ff6f7d467b87a9e8030000".into(),
+        "0x00".into()
+    );
 }
 
 fn clear_para_consensus(chain_spec: &mut ChainSpec) {
@@ -180,7 +193,7 @@ fn clear_para_consensus(chain_spec: &mut ChainSpec) {
         substorager::storage_value_key(&b"System"[..], b"Account"),
     );
     // TODO: if the `top` is sorted, we can pop the prefix while it is passed
-    let ignore_prefixes = [b"Aura".as_ref(), b"Authorship", b"Session"]
+    let ignore_prefixes = [b"Aura".as_ref(), b"Authorship", b"Session", b"CollatorSelection", b"ParachainSystem"]
         .iter()
         .map(|prefix| array_bytes::bytes2hex("0x", subhasher::twox128(prefix)))
         .collect::<Vec<_>>();
@@ -206,7 +219,15 @@ fn clear_para_consensus(chain_spec: &mut ChainSpec) {
         })
         .collect();
 
-    top.remove(&substorager::storage_value_key(&b"System"[..], b"LastRuntimeUpgrade").to_string());
+    // top.remove(&substorager::storage_value_key(&b"System"[..], b"LastRuntimeUpgrade").to_string());
+    top.remove(&substorager::storage_value_key(&b"ParachainSystem"[..], b"LastRelayChainBlockNumber").to_string());
+
+    // parachainSystem lastDmqMqcHead (emtpy)
+    top.insert(
+        "0x45323df7cc47150b3930e2666b0aa313911a5dd3f1155f5b7d0c5aa102a757f9".into(),
+        "0x0000000000000000000000000000000000000000000000000000000000000000".into(),
+    );
+
 }
 
 pub(super) fn set_simple_governance(chain_spec: &mut ChainSpec) {

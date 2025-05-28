@@ -262,9 +262,9 @@ async fn bite(
         disable_default_bootnodes: true,
         paras_heads: paras_head,
     };
-    trace!("{:?}", fork_off_config);
-    info!("{}", exported_state_file.as_ref());
     info!("{:?}", fork_off_config);
+    info!("{}", exported_state_file.as_ref());
+
 
     let forked_off_path = fork_off(exported_state_file.as_ref(), &fork_off_config, context).await?;
     info!("{:?}", forked_off_path);
@@ -369,56 +369,75 @@ pub async fn main_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
         .await
         .unwrap();
 
-    let relaychain_rpc_random_port = get_random_port().await;
-    let mut syncs = vec![sync_relay_only(
-        ns.clone(),
-        relay_chain.as_chain_string(),
-        relaychain_rpc_random_port,
-    )
-    .boxed()];
-    for para in &paras_to {
-        syncs.push(
-            sync_para(
-                ns.clone(),
-                para.as_chain_string(&relay_chain.as_chain_string()),
-                relay_chain.as_chain_string(),
-                relaychain_rpc_random_port,
+    let relaychain_rpc_port: u16 = if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
+        port.parse()
+            .expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16")
+    } else {
+        get_random_port().await
+    };
+
+
+    let (exported_state_filepath, paras_exported_state_paths) = if relay_chain.as_chain_string() != "westend" {
+        // SYNC
+        let mut syncs = vec![sync_relay_only(
+            ns.clone(),
+            relay_chain.as_chain_string(),
+            relaychain_rpc_port,
+        )
+        .boxed()];
+        for para in &paras_to {
+            syncs.push(
+                sync_para(
+                    ns.clone(),
+                    para.as_chain_string(&relay_chain.as_chain_string()),
+                    relay_chain.as_chain_string(),
+                    relaychain_rpc_port,
+                )
+                .boxed(),
+            );
+        }
+
+
+        let res = try_join_all(syncs).await.unwrap();
+        let mut res_iter = res.into_iter();
+        let (sync_node, sync_db_path) = res_iter.next().unwrap();
+        // stop relay node
+        sync_node.destroy().await.unwrap();
+
+        // We need to build first the parachains artifacts to include the new `Head` in the relaychain
+        let mut paras_exported_state_paths = vec![];
+        for para in &paras_to {
+            // export para state
+            let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
+            let para_exported_state_filepath = export_state(
+                para_sync_node,
+                para_sync_db_path,
+                &para.as_chain_string(&relay_chain.as_chain_string()),
+                Context::Parachain,
             )
-            .boxed(),
-        );
-    }
+            .await
+            .unwrap();
+            paras_exported_state_paths.push(para_exported_state_filepath);
+        }
 
-    // syncs.push(sync_relay_only(ns.clone(), relay_chain.as_chain_string(), relaychain_rpc_random_port));
-    let res = try_join_all(syncs).await.unwrap();
-    let mut res_iter = res.into_iter();
-    let (sync_node, sync_db_path) = res_iter.next().unwrap();
-    // stop relay node
-    sync_node.destroy().await.unwrap();
-
-    // We need to build first the parachains artifacts to include the new `Head` in the relaychain
-    let mut paras_exported_state_paths = vec![];
-    for para in &paras_to {
-        // export para state
-        let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
-        let para_exported_state_filepath = export_state(
-            para_sync_node,
-            para_sync_db_path,
-            &para.as_chain_string(&relay_chain.as_chain_string()),
-            Context::Parachain,
+        let exported_state_filepath = export_state(
+            sync_node,
+            sync_db_path,
+            &relay_chain.as_chain_string(),
+            Context::Relaychain,
         )
         .await
         .unwrap();
-        paras_exported_state_paths.push(para_exported_state_filepath);
-    }
 
-    let exported_state_filepath = export_state(
-        sync_node,
-        sync_db_path,
-        &relay_chain.as_chain_string(),
-        Context::Relaychain,
-    )
-    .await
-    .unwrap();
+
+        (exported_state_filepath, paras_exported_state_paths)
+    } else {
+        // westend
+        (
+            env::var("ZOMBIE_BITE_WESTEND_EXPORT").expect("ZOMBIE_BITE_WESTEND_EXPORT should be set to the export file"),
+            vec![env::var("ZOMBIE_BITE_AHW_EXPORT").expect("ZOMBIE_BITE_AHW_EXPORT should be set to the export file")],
+        )
+    };
 
     let mut spec = generate_new_network(&relay_chain, ns.clone(), &base_dir_str, paras_to.clone())
         .await
@@ -474,6 +493,7 @@ pub async fn main_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
         let head_path = format!("{base_dir_str}/{id}/genesis-state");
         let head = tokio::fs::read_to_string(head_path).await.unwrap();
         paras_heads.insert(id, head);
+        // paras_heads.insert(id,"0x000000000000000000000000000000000000000000000000000000000000000000e9433b281bdfce71f8941f7fd9c282f05a677cec3a254d829dd4c1526ba3063703170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c11131400".into());
     }
 
     let chain_spec_raw_generated = spec

@@ -108,10 +108,16 @@ pub async fn sync_para(
 
     println!("env: {env:?}");
 
+    let chain_arg = if chain.as_ref() == "asset-hub-paseo" {
+        "/tmp/paseo-asset-hub.json"
+    } else {
+        chain.as_ref()
+    };
+
     let opts = SpawnNodeOptions::new("sync-node-para", cmd.as_ref())
         .args(vec![
             "--chain",
-            chain.as_ref(),
+            chain_arg,
             "--sync",
             "warp",
             "-d",
@@ -122,10 +128,10 @@ pub async fn sync_para(
             &metrics_random_port.to_string(),
             "--relay-chain-rpc-url",
             relaychain_endpoint.as_ref(),
+            "--no-hardware-benchmarks",
             "--",
             "--chain",
             relaychain.as_ref(),
-            "--no-hardware-benchmarks",
         ])
         .env(env);
 
@@ -145,7 +151,8 @@ pub async fn sync_para(
     Ok((
         sync_node,
         sync_db_path,
-        chain.as_ref().to_string(),
+        //chain.as_ref().to_string(),
+        chain_arg.to_string(),
         para_head_path,
     ))
 }

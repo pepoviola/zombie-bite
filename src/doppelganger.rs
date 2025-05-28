@@ -3,11 +3,13 @@
 
 use futures::future::try_join_all;
 use futures::{FutureExt, StreamExt};
+use reqwest::header::X_CONTENT_TYPE_OPTIONS;
+use zombienet_sdk::NetworkNode;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::time::UNIX_EPOCH;
 use tokio::fs;
 
@@ -16,7 +18,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use tar::Builder;
 
-use tracing::debug;
+use tracing::{debug, warn};
 use tracing::info;
 use zombienet_configuration::NetworkConfigBuilder;
 use zombienet_orchestrator::network::Network;
@@ -36,7 +38,9 @@ use crate::overrides::{generate_default_overrides_for_para, generate_default_ove
 use crate::sync::{sync_para, sync_relay_only};
 use crate::utils::get_random_port;
 
-use std::env;
+use std::{any, env};
+
+const CHECK_TIMEOUT_SECS: u64 =  900; // 15 mins
 
 #[derive(Debug, Clone)]
 struct ChainArtifact {
@@ -98,7 +102,15 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     for (para_index, (_sync_node, sync_db_path, sync_chain, sync_head_path)) in
         res.into_iter().enumerate()
     {
-        let chain_spec_path = format!("{}/{}-spec.json", &base_dir_str, &sync_chain);
+        let sync_chain_name = if sync_chain.contains('/') {
+            let parts: Vec<&str> = sync_chain.split('/').collect();
+            parts.last().unwrap().to_string()
+        } else {
+            // is not a file
+            sync_chain.clone()
+        };
+
+        let chain_spec_path = format!("{}/{}-spec.json", &base_dir_str, &sync_chain_name);
         generate_chain_spec(
             ns.clone(),
             &chain_spec_path,
@@ -109,7 +121,8 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         .unwrap();
 
         // generate the data.tgz to use as snapshot
-        let snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain);
+        let snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain_name);
+        println!("s: {snap_path}");
         generate_snap(&sync_db_path, &snap_path).await.unwrap();
 
         // // real last log line to get the para_head
@@ -233,9 +246,68 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         // shutdown the network
         // network.destroy().await.unwrap();
     } else {
-        // For now let just loop....
-        #[allow(clippy::empty_loop)]
-        loop {}
+        // monitoring block production every 15 mins
+        let alice = network.get_node("alice").unwrap();
+        let bob = network.get_node("bob").unwrap();
+        let collator = network.get_node("collator").unwrap();
+
+        // wait until the collator reply the metrics
+        let _ = collator.wait_metric_with_timeout("node_roles", |x| x > 1.0 , 300_u64).await.unwrap();
+
+        let mut alice_block = progress(&alice, 0).await.expect("first check should works");
+        let mut bob_block = progress(&bob, 0).await.expect("first check should works");
+        let mut collator_block = progress(&collator, 0).await.expect("first check should works");
+
+        loop {
+            tokio::time::sleep(Duration::from_secs(CHECK_TIMEOUT_SECS)).await;
+            // check the progress
+            // alice
+            let mut alice_was_restarted = false;
+            if let Ok(block) = progress(&alice, alice_block).await {
+                alice_block = block;
+            } else {
+                // restart alice / collator
+                restart(alice, alice_block).await;
+                restart(collator, collator_block).await;
+                alice_was_restarted = true;
+            }
+
+            // bob
+            if let Ok(block) = progress(&bob, bob_block).await {
+                bob_block = block;
+            } else {
+                // restart alice / collator
+                restart(bob, bob_block).await;
+            }
+
+            if ! alice_was_restarted {
+                if let Ok(block) = progress(&collator, collator_block).await {
+                    collator_block = block;
+                } else {
+                    // restart alice / collator
+                    restart(collator, collator_block).await;
+                }
+            }
+        }
+    }
+}
+
+async fn restart(node: &NetworkNode, checkpoint:impl Into<f64>) {
+    if let Ok(_) = node.restart(None).await {
+        info!("{} was restarted at block {}", node.name(), checkpoint.into());
+    } else {
+        warn!("Error restarting {}", node.name());
+    }
+}
+
+async fn progress(node: &NetworkNode, checkpoint:impl Into<f64>) -> Result<f64, anyhow::Error> {
+    let metric = node.reports("block_height{status=\"best\"}").await?;
+    let checkpoint = checkpoint.into();
+    if metric > checkpoint {
+        info!("{} is making progress, checkpoint {} - current {}", node.name(), checkpoint, metric);
+        Ok(metric)
+    } else {
+        Err(anyhow::anyhow!("node don't progress, current {metric} - checkpoint {checkpoint}"))
     }
 }
 
