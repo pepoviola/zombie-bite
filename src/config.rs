@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 // TODO: don't allow dead_code
 
+use std::env;
+
 use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
 
 #[derive(Debug, PartialEq)]
@@ -45,6 +47,7 @@ pub enum Relaychain {
     Polkadot(MaybeWasmOverridePath),
     Kusama(MaybeWasmOverridePath),
     Westend(MaybeWasmOverridePath),
+    Paseo(MaybeWasmOverridePath),
 }
 
 impl Relaychain {
@@ -53,6 +56,7 @@ impl Relaychain {
             Relaychain::Polkadot(_) => "polkadot-local",
             Relaychain::Kusama(_) => "kusama-local",
             Relaychain::Westend(_) => "westend-local",
+            Relaychain::Paseo(_) => "paseo-local",
         })
     }
 
@@ -61,6 +65,7 @@ impl Relaychain {
             Relaychain::Polkadot(_) => "polkadot",
             Relaychain::Kusama(_) => "kusama",
             Relaychain::Westend(_) => "westend",
+            Relaychain::Paseo(_) => "paseo",
         })
     }
 
@@ -70,6 +75,7 @@ impl Relaychain {
             Relaychain::Polkadot(_) => "wss://polkadot-rpc.dwellir.com",
             Relaychain::Kusama(_) => "wss://kusama-rpc.dwellir.com",
             Relaychain::Westend(_) => "wss://westend-rpc.polkadot.io",
+            Relaychain::Paseo(_) => "wss://paseo-rpc.dwellir.com",
         })
     }
 
@@ -79,7 +85,10 @@ impl Relaychain {
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Relaychain::Kusama(x) | Relaychain::Polkadot(x) | Relaychain::Westend(x) => {
+            Relaychain::Kusama(x) |
+            Relaychain::Polkadot(x) |
+            Relaychain::Westend(x) |
+            Relaychain::Paseo(x)=> {
                 x.as_deref()
             }
         }
@@ -157,17 +166,30 @@ pub fn generate_network_config(
     let relay_context = Context::Relaychain;
     let para_context = Context::Parachain;
 
-    let chain_spec_cmd = CMD_TPL;
+    let chain_spec_cmd = match network {
+        Relaychain::Polkadot(_) |
+        Relaychain::Kusama(_) => CMD_TPL,
+        Relaychain::Westend(_) |
+        Relaychain::Paseo(_) => DEFAULT_CHAIN_SPEC_TPL_COMMAND,
+    };
 
     let network_builder = NetworkConfigBuilder::new().with_relaychain(|r| {
-        r.with_chain(relay_chain.as_str())
+        let relaychain_builder = r.with_chain(relay_chain.as_str())
             .with_default_command(relay_context.cmd().as_str())
             .with_chain_spec_command(chain_spec_cmd)
             .chain_spec_command_is_local(true)
             // .with_default_args(vec![("-l", "babe=debug,grandpa=debug,runtime=debug,parachain::=debug,sub-authority-discovery=trace").into()])
-            .with_default_args(vec![("-l", "runtime=trace").into()])
-            .with_node(|node| node.with_name(ALICE))
-            .with_node(|node| node.with_name(BOB))
+            .with_default_args(vec![("-l", "runtime=trace").into()]);
+
+        let relaychain_builder =  if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
+            let rpc_port = port.parse().expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16");
+            relaychain_builder.with_node(|node| node.with_name(ALICE).with_rpc_port(rpc_port))
+        } else {
+            relaychain_builder.with_node(|node| node.with_name(ALICE))
+        };
+
+            // .with_node(|node| node.with_name(ALICE))
+            relaychain_builder.with_node(|node| node.with_name(BOB))
         // .with_node(|node| node.with_name(CHARLIE))
         // .with_node(|node| node.with_name(DAVE))
     });
@@ -189,11 +211,17 @@ pub fn generate_network_config(
                 .with_collator(|c| {
                     // TODO: use single collator for now
                     // c.with_name(&format!("col-{}",id))
-                    c.with_name("collator")
+                    let col_builder = c.with_name("collator")
                     .with_args(vec![
-                        ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,sub-authority-discovery=trace").into(),
+                        ("-l", "aura=debug,runtime=trace,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,basic-authorship=trace").into(),
                         "--force-authoring".into()
-                        ])
+                    ]);
+                    if let Ok(port) = env::var("ZOMBIE_BITE_AH_PORT") {
+                        let rpc_port = port.parse().expect("env var ZOMBIE_BITE_AH_PORT must be a valid u16");
+                        col_builder.with_rpc_port(rpc_port)
+                    } else {
+                        col_builder
+                    }
                 })
         })
     });

@@ -5,7 +5,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
     println!("{:?}", args);
     let Some(relay) = args.get(1) else {
-        panic!("Relaychain argument must be present... [polkadot | kusama |westend]");
+        panic!("Relaychain argument must be present... [polkadot | kusama | westend | paseo]");
     };
 
     // print version with --version
@@ -23,6 +23,7 @@ pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
         "polkadot" => Relaychain::Polkadot(wasm_overrides),
         "kusama" => Relaychain::Kusama(wasm_overrides),
         "westend" => Relaychain::Westend(wasm_overrides),
+        "paseo" => Relaychain::Paseo(wasm_overrides),
         _ => {
             let msg =
                 format!("Invalid network, should be one of 'polkadot, kusama', you pass: {relay}");
