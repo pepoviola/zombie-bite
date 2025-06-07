@@ -1,6 +1,6 @@
 [package]
 name = "zombie-bite"
-version = "0.1.6"
+version = "0.1.9"
 edition = "2021"
 default-run = "zombie-bite"
 
@@ -34,9 +34,9 @@ sp-core = "34.0.0"
 name = "doppelganger"
 path = "src/doppelganger_cli.rs"
 
-# [[bin]]
-# name = "regular"
-# path = "src/regular.rs"
+[[bin]]
+name = "regular"
+path = "src/regular.rs"
 
 [[bin]]
 name = "spawn"
