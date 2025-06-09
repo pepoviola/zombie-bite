@@ -73,7 +73,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     tokio::fs::create_dir_all(&global_base_dir).await.unwrap();
 
     // add `/bite` to global base
-    let fixed_base_dir = global_base_dir.join("bite");
+    let fixed_base_dir = global_base_dir.canonicalize().unwrap().join("bite");
 
     let base_dir_str = fixed_base_dir.to_string_lossy();
     let ns = provider
@@ -229,7 +229,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
     };
 
-    let network = spawn(provider, relay_artifacts, para_artifacts)
+    let network = spawn(provider, relay_artifacts, para_artifacts, Some(global_base_dir.clone()))
         .await
         .expect("Fail to spawn the new network");
 
@@ -272,12 +272,17 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         // TODO: customization for AHM
         // ready to start
         let ready_content = json!({
-            "alice_port" : alice.ws_uri().split(":").skip(2).next().unwrap(),
-            "collator_port": collator.ws_uri().split(":").skip(2).next().unwrap(),
             "rc_start_block": rc_start_block,
             "ah_start_block": ah_start_block,
         });
 
+        // ports
+        let ports_content = json!({
+            "alice_port" : alice.ws_uri().split(":").skip(2).next().unwrap(),
+            "collator_port": collator.ws_uri().split(":").skip(2).next().unwrap(),
+        });
+
+        let _ = fs::write(format!("{}/ports.json", &global_base_dir.to_string_lossy()), ports_content.to_string()).await;
         let _ = fs::write(format!("{}/ready.json", &global_base_dir.to_string_lossy()), ready_content.to_string()).await;
 
         let mut alice_block = progress(&alice, 0).await.expect("first check should works");
@@ -341,6 +346,7 @@ async fn spawn(
     provider: DynProvider,
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
+    global_base_dir: Option<PathBuf>
 ) -> Result<Network<LocalFileSystem>, String> {
     let leaked_rust_log = env::var("RUST_LOG").unwrap_or_else(|_| {
         String::from(
@@ -464,7 +470,7 @@ async fn spawn(
             };
 
             config = config.with_parachain(|p|{
-                let mut para_builder = p.with_id(1000)
+                let para_builder = p.with_id(1000)
                 .with_chain(para.chain.as_str())
                 .with_default_command(para.cmd.as_str())
                 .with_chain_spec_path(chain_spec_path)
@@ -494,9 +500,10 @@ async fn spawn(
         }
     }
 
-    let config = if let Ok(fixed_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
+    let config = if let Some(global_base_dir) = global_base_dir {
+        let fixed_base_dir = global_base_dir.canonicalize().unwrap().join("spawn");
         config.with_global_settings(|global_settings| {
-            global_settings.with_base_dir(&format!("{fixed_path}/spawn"))
+            global_settings.with_base_dir(&fixed_base_dir.to_string_lossy().to_string())
         })
     } else {
        config
@@ -672,7 +679,7 @@ mod test {
             override_wasm: None,
         };
 
-        let n = spawn(provider, r, vec![p]).await.unwrap();
+        let n = spawn(provider, r, vec![p], None).await.unwrap();
         println!("{:?}", n);
         loop {}
     }
