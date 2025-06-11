@@ -265,7 +265,6 @@ async fn bite(
     info!("{:?}", fork_off_config);
     info!("{}", exported_state_file.as_ref());
 
-
     let forked_off_path = fork_off(exported_state_file.as_ref(), &fork_off_config, context).await?;
     info!("{:?}", forked_off_path);
 
@@ -376,68 +375,68 @@ pub async fn main_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
         get_random_port().await
     };
 
+    let (exported_state_filepath, paras_exported_state_paths) =
+        if relay_chain.as_chain_string() != "westend" {
+            // SYNC
+            let mut syncs = vec![sync_relay_only(
+                ns.clone(),
+                relay_chain.as_chain_string(),
+                relaychain_rpc_port,
+            )
+            .boxed()];
+            for para in &paras_to {
+                syncs.push(
+                    sync_para(
+                        ns.clone(),
+                        para.as_chain_string(&relay_chain.as_chain_string()),
+                        relay_chain.as_chain_string(),
+                        relaychain_rpc_port,
+                    )
+                    .boxed(),
+                );
+            }
 
-    let (exported_state_filepath, paras_exported_state_paths) = if relay_chain.as_chain_string() != "westend" {
-        // SYNC
-        let mut syncs = vec![sync_relay_only(
-            ns.clone(),
-            relay_chain.as_chain_string(),
-            relaychain_rpc_port,
-        )
-        .boxed()];
-        for para in &paras_to {
-            syncs.push(
-                sync_para(
-                    ns.clone(),
-                    para.as_chain_string(&relay_chain.as_chain_string()),
-                    relay_chain.as_chain_string(),
-                    relaychain_rpc_port,
+            let res = try_join_all(syncs).await.unwrap();
+            let mut res_iter = res.into_iter();
+            let (sync_node, sync_db_path) = res_iter.next().unwrap();
+            // stop relay node
+            sync_node.destroy().await.unwrap();
+
+            // We need to build first the parachains artifacts to include the new `Head` in the relaychain
+            let mut paras_exported_state_paths = vec![];
+            for para in &paras_to {
+                // export para state
+                let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
+                let para_exported_state_filepath = export_state(
+                    para_sync_node,
+                    para_sync_db_path,
+                    &para.as_chain_string(&relay_chain.as_chain_string()),
+                    Context::Parachain,
                 )
-                .boxed(),
-            );
-        }
+                .await
+                .unwrap();
+                paras_exported_state_paths.push(para_exported_state_filepath);
+            }
 
-
-        let res = try_join_all(syncs).await.unwrap();
-        let mut res_iter = res.into_iter();
-        let (sync_node, sync_db_path) = res_iter.next().unwrap();
-        // stop relay node
-        sync_node.destroy().await.unwrap();
-
-        // We need to build first the parachains artifacts to include the new `Head` in the relaychain
-        let mut paras_exported_state_paths = vec![];
-        for para in &paras_to {
-            // export para state
-            let (para_sync_node, para_sync_db_path) = res_iter.next().unwrap();
-            let para_exported_state_filepath = export_state(
-                para_sync_node,
-                para_sync_db_path,
-                &para.as_chain_string(&relay_chain.as_chain_string()),
-                Context::Parachain,
+            let exported_state_filepath = export_state(
+                sync_node,
+                sync_db_path,
+                &relay_chain.as_chain_string(),
+                Context::Relaychain,
             )
             .await
             .unwrap();
-            paras_exported_state_paths.push(para_exported_state_filepath);
-        }
 
-        let exported_state_filepath = export_state(
-            sync_node,
-            sync_db_path,
-            &relay_chain.as_chain_string(),
-            Context::Relaychain,
-        )
-        .await
-        .unwrap();
-
-
-        (exported_state_filepath, paras_exported_state_paths)
-    } else {
-        // westend
-        (
-            env::var("ZOMBIE_BITE_WESTEND_EXPORT").expect("ZOMBIE_BITE_WESTEND_EXPORT should be set to the export file"),
-            vec![env::var("ZOMBIE_BITE_AHW_EXPORT").expect("ZOMBIE_BITE_AHW_EXPORT should be set to the export file")],
-        )
-    };
+            (exported_state_filepath, paras_exported_state_paths)
+        } else {
+            // westend
+            (
+                env::var("ZOMBIE_BITE_WESTEND_EXPORT")
+                    .expect("ZOMBIE_BITE_WESTEND_EXPORT should be set to the export file"),
+                vec![env::var("ZOMBIE_BITE_AHW_EXPORT")
+                    .expect("ZOMBIE_BITE_AHW_EXPORT should be set to the export file")],
+            )
+        };
 
     let mut spec = generate_new_network(&relay_chain, ns.clone(), &base_dir_str, paras_to.clone())
         .await

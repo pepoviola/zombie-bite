@@ -85,12 +85,10 @@ impl Relaychain {
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Relaychain::Kusama(x) |
-            Relaychain::Polkadot(x) |
-            Relaychain::Westend(x) |
-            Relaychain::Paseo(x)=> {
-                x.as_deref()
-            }
+            Relaychain::Kusama(x)
+            | Relaychain::Polkadot(x)
+            | Relaychain::Westend(x)
+            | Relaychain::Paseo(x) => x.as_deref(),
         }
     }
 }
@@ -167,29 +165,30 @@ pub fn generate_network_config(
     let para_context = Context::Parachain;
 
     let chain_spec_cmd = match network {
-        Relaychain::Polkadot(_) |
-        Relaychain::Kusama(_) => CMD_TPL,
-        Relaychain::Westend(_) |
-        Relaychain::Paseo(_) => DEFAULT_CHAIN_SPEC_TPL_COMMAND,
+        Relaychain::Polkadot(_) | Relaychain::Kusama(_) => CMD_TPL,
+        Relaychain::Westend(_) | Relaychain::Paseo(_) => DEFAULT_CHAIN_SPEC_TPL_COMMAND,
     };
 
     let network_builder = NetworkConfigBuilder::new().with_relaychain(|r| {
-        let relaychain_builder = r.with_chain(relay_chain.as_str())
+        let relaychain_builder = r
+            .with_chain(relay_chain.as_str())
             .with_default_command(relay_context.cmd().as_str())
             .with_chain_spec_command(chain_spec_cmd)
             .chain_spec_command_is_local(true)
             // .with_default_args(vec![("-l", "babe=debug,grandpa=debug,runtime=debug,parachain::=debug,sub-authority-discovery=trace").into()])
             .with_default_args(vec![("-l", "runtime=trace").into()]);
 
-        let relaychain_builder =  if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
-            let rpc_port = port.parse().expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16");
+        let relaychain_builder = if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
+            let rpc_port = port
+                .parse()
+                .expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16");
             relaychain_builder.with_node(|node| node.with_name(ALICE).with_rpc_port(rpc_port))
         } else {
             relaychain_builder.with_node(|node| node.with_name(ALICE))
         };
 
-            // .with_node(|node| node.with_name(ALICE))
-            relaychain_builder.with_node(|node| node.with_name(BOB))
+        // .with_node(|node| node.with_name(ALICE))
+        relaychain_builder.with_node(|node| node.with_name(BOB))
         // .with_node(|node| node.with_name(CHARLIE))
         // .with_node(|node| node.with_name(DAVE))
     });
