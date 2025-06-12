@@ -240,6 +240,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     .await
     .expect("Fail to spawn the new network");
 
+
     info!("🚀🚀🚀🚀 network deployed");
 
     // collect info
@@ -351,6 +352,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     }
 }
 
+
 async fn restart(node: &NetworkNode, checkpoint: impl Into<f64>) {
     if (node.restart(None).await).is_ok() {
         warn!(
@@ -373,6 +375,7 @@ async fn progress(node: &NetworkNode, checkpoint: impl Into<f64>) -> Result<f64,
             checkpoint,
             metric
         );
+
         Ok(metric)
     } else {
         Err(anyhow::anyhow!(
@@ -386,6 +389,7 @@ async fn spawn(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
     global_base_dir: Option<PathBuf>,
+
 ) -> Result<Network<LocalFileSystem>, String> {
     let leaked_rust_log = env::var("RUST_LOG").unwrap_or_else(|_| {
         String::from(
