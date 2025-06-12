@@ -155,10 +155,7 @@ fn clear_consensus(chain_spec: &mut ChainSpec, paras_heads: ParasHeads) {
             array_bytes::bytes2hex("", &para_id_hash)
         );
         let para_head =
-            array_bytes::bytes2hex(
-                "0x",
-                HeadData(hex::decode(&head[2..]).unwrap()).encode()
-            );
+            array_bytes::bytes2hex("0x", HeadData(hex::decode(&head[2..]).unwrap()).encode());
         debug!("key: {key}");
         debug!("value: {para_head}");
 
@@ -193,10 +190,16 @@ fn clear_para_consensus(chain_spec: &mut ChainSpec) {
         substorager::storage_value_key(&b"System"[..], b"Account"),
     );
     // TODO: if the `top` is sorted, we can pop the prefix while it is passed
-    let ignore_prefixes = [b"Aura".as_ref(), b"Authorship", b"Session", b"CollatorSelection", b"ParachainSystem"]
-        .iter()
-        .map(|prefix| array_bytes::bytes2hex("0x", subhasher::twox128(prefix)))
-        .collect::<Vec<_>>();
+    let ignore_prefixes = [
+        b"Aura".as_ref(),
+        b"Authorship",
+        b"Session",
+        b"CollatorSelection",
+        b"ParachainSystem",
+    ]
+    .iter()
+    .map(|prefix| array_bytes::bytes2hex("0x", subhasher::twox128(prefix)))
+    .collect::<Vec<_>>();
     // TODO: use `BTreeMap` for `top`, sortable
     let mut new_top = FxHashMap::default();
 
@@ -220,14 +223,16 @@ fn clear_para_consensus(chain_spec: &mut ChainSpec) {
         .collect();
 
     // top.remove(&substorager::storage_value_key(&b"System"[..], b"LastRuntimeUpgrade").to_string());
-    top.remove(&substorager::storage_value_key(&b"ParachainSystem"[..], b"LastRelayChainBlockNumber").to_string());
+    top.remove(
+        &substorager::storage_value_key(&b"ParachainSystem"[..], b"LastRelayChainBlockNumber")
+            .to_string(),
+    );
 
     // parachainSystem lastDmqMqcHead (emtpy)
     top.insert(
         "0x45323df7cc47150b3930e2666b0aa313911a5dd3f1155f5b7d0c5aa102a757f9".into(),
         "0x0000000000000000000000000000000000000000000000000000000000000000".into(),
     );
-
 }
 
 pub(super) fn set_simple_governance(chain_spec: &mut ChainSpec) {
@@ -483,9 +488,7 @@ mod test {
             "0x",
             substorager::storage_value_key(&b"CollatorSelection"[..], b"Invulnerables"),
         );
-        println!(
-            "CollatorSelection Invulnerables {inv}"
-        );
+        println!("CollatorSelection Invulnerables {inv}");
 
         println!(
             "CollatorSelection CandidateList {}",
@@ -493,17 +496,15 @@ mod test {
                 "0x",
                 substorager::storage_value_key(&b"CollatorSelection"[..], b"CandidateList")
             )
-         );
+        );
 
-         println!(
+        println!(
             "CollatorSelection DesiredCandidates {}",
             array_bytes::bytes2hex(
                 "0x",
                 substorager::storage_value_key(&b"CollatorSelection"[..], b"DesiredCandidates")
             )
-         );
-
-
+        );
 
         println!(
             "aura authorities{}",
@@ -542,7 +543,8 @@ mod test {
 
         println!(
             "session NextKeys {}",
-            array_bytes::bytes2hex("0x",
+            array_bytes::bytes2hex(
+                "0x",
                 substorager::storage_value_key(&b"Session"[..], b"NextKeys")
             )
         );

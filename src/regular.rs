@@ -22,7 +22,6 @@ async fn main() {
     //     );
     // }
 
-
     // // TODO: move to clap
     // let relay_chain = if args[1] == "polkadot" { config::Relaychain::Polkadot } else { config::Relaychain::Kusama };
 
@@ -66,5 +65,4 @@ async fn main() {
     loop {
         tokio::time::sleep(Duration::from_secs(60)).await;
     }
-
 }

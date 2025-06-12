@@ -4,22 +4,22 @@
 use futures::future::try_join_all;
 use futures::{FutureExt, StreamExt};
 use serde_json::json;
-use zombienet_sdk::NetworkNode;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
 use std::time::UNIX_EPOCH;
+use std::time::{Duration, SystemTime};
 use tokio::fs;
+use zombienet_sdk::NetworkNode;
 
 use codec::Encode;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use tar::Builder;
 
-use tracing::{debug, trace, warn};
 use tracing::info;
+use tracing::{debug, trace, warn};
 use zombienet_configuration::NetworkConfigBuilder;
 use zombienet_orchestrator::network::Network;
 use zombienet_orchestrator::Orchestrator;
@@ -40,7 +40,9 @@ use crate::utils::get_random_port;
 
 use std::env;
 
-const CHECK_TIMEOUT_SECS: u64 =  900; // 15 mins
+const CHECK_TIMEOUT_SECS: u64 = 900; // 15 mins
+const PORTS_FILE: &str = "ports.json";
+const READY_FILE: &str = "ready.json";
 
 #[derive(Debug, Clone)]
 struct ChainArtifact {
@@ -229,11 +231,45 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
     };
 
-    let network = spawn(provider, relay_artifacts, para_artifacts, Some(global_base_dir.clone()))
-        .await
-        .expect("Fail to spawn the new network");
+    let network = spawn(
+        provider,
+        relay_artifacts,
+        para_artifacts,
+        Some(global_base_dir.clone()),
+    )
+    .await
+    .expect("Fail to spawn the new network");
+
 
     info!("🚀🚀🚀🚀 network deployed");
+
+    // collect info
+    let alice = network.get_node("alice").unwrap();
+    let bob = network.get_node("bob").unwrap();
+    let collator = network.get_node("collator").unwrap();
+
+    let rc_start_block = fs::read_to_string(format!("{base_dir_str}/rc_info.txt"))
+        .await
+        .unwrap()
+        .parse::<u64>()
+        .expect("read bite rc block should works");
+    let ah_start_block = fs::read_to_string(format!("{base_dir_str}/para-1000.txt"))
+        .await
+        .unwrap()
+        .parse::<u64>()
+        .expect("read bite ah block should works");
+
+    // ready to start
+    let ready_content = json!({
+        "rc_start_block": rc_start_block,
+        "ah_start_block": ah_start_block,
+    });
+
+    // ports
+    let ports_content = json!({
+        "alice_port" : alice.ws_uri().split(":").nth(2).unwrap(),
+        "collator_port": collator.ws_uri().split(":").nth(2).unwrap(),
+    });
 
     if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
         // ensure block production and move artifacts to make it reusable
@@ -249,52 +285,45 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
             println!("Block #{}", block.unwrap().header().number);
         }
 
-        // copy rc info to this directory
-        fs::copy(rc_info_path, format!("{ci_path}/rc-info.txt"))
-            .await
-            .expect("copy file for ci should works.");
+        // create info files
+        let _ = fs::write(format!("{ci_path}/{PORTS_FILE}"), ports_content.to_string()).await;
+        let _ = fs::write(format!("{ci_path}/{READY_FILE}"), ready_content.to_string()).await;
+
         info!("teardown network...");
         // shutdown the network
         // network.destroy().await.unwrap();
     } else {
         // monitoring block production every 15 mins
-        let alice = network.get_node("alice").unwrap();
-        let bob = network.get_node("bob").unwrap();
-        let collator = network.get_node("collator").unwrap();
+        // but first wait until the collator reply the metrics
+        let _ = collator
+            .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
+            .await
+            .unwrap();
 
-        // wait until the collator reply the metrics
-        let _ = collator.wait_metric_with_timeout("node_roles", |x| x > 1.0 , 300_u64).await.unwrap();
+        // create info files
+        let _ = fs::write(
+            format!("{}/{PORTS_FILE}", &global_base_dir.to_string_lossy()),
+            ports_content.to_string(),
+        )
+        .await;
+        let _ = fs::write(
+            format!("{}/{READY_FILE}", &global_base_dir.to_string_lossy()),
+            ready_content.to_string(),
+        )
+        .await;
 
-        let rc_start_block = fs::read_to_string(format!("{base_dir_str}/rc_info.txt")).await.unwrap().parse::<u64>().expect("read bite rc block should works");
-        let ah_start_block = fs::read_to_string(format!("{base_dir_str}/para-1000.txt")).await.unwrap().parse::<u64>().expect("read bite ah block should works");
-
-
-        // TODO: customization for AHM
-        // ready to start
-        let ready_content = json!({
-            "rc_start_block": rc_start_block,
-            "ah_start_block": ah_start_block,
-        });
-
-        // ports
-        let ports_content = json!({
-            "alice_port" : alice.ws_uri().split(":").skip(2).next().unwrap(),
-            "collator_port": collator.ws_uri().split(":").skip(2).next().unwrap(),
-        });
-
-        let _ = fs::write(format!("{}/ports.json", &global_base_dir.to_string_lossy()), ports_content.to_string()).await;
-        let _ = fs::write(format!("{}/ready.json", &global_base_dir.to_string_lossy()), ready_content.to_string()).await;
-
-        let mut alice_block = progress(&alice, 0).await.expect("first check should works");
-        let mut bob_block = progress(&bob, 0).await.expect("first check should works");
-        let mut collator_block = progress(&collator, 0).await.expect("first check should works");
+        let mut alice_block = progress(alice, 0).await.expect("first check should works");
+        let mut bob_block = progress(bob, 0).await.expect("first check should works");
+        let mut collator_block = progress(collator, 0)
+            .await
+            .expect("first check should works");
 
         loop {
             tokio::time::sleep(Duration::from_secs(CHECK_TIMEOUT_SECS)).await;
             // check the progress
             // alice
             let mut alice_was_restarted = false;
-            if let Ok(block) = progress(&alice, alice_block).await {
+            if let Ok(block) = progress(alice, alice_block).await {
                 alice_block = block;
             } else {
                 // restart alice / collator
@@ -304,15 +333,15 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
             }
 
             // bob
-            if let Ok(block) = progress(&bob, bob_block).await {
+            if let Ok(block) = progress(bob, bob_block).await {
                 bob_block = block;
             } else {
                 // restart alice / collator
                 restart(bob, bob_block).await;
             }
 
-            if ! alice_was_restarted {
-                if let Ok(block) = progress(&collator, collator_block).await {
+            if !alice_was_restarted {
+                if let Ok(block) = progress(collator, collator_block).await {
                     collator_block = block;
                 } else {
                     // restart alice / collator
@@ -323,22 +352,35 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     }
 }
 
-async fn restart(node: &NetworkNode, checkpoint:impl Into<f64>) {
-    if let Ok(_) = node.restart(None).await {
-        warn!("{} was restarted at block {}", node.name(), checkpoint.into());
+
+async fn restart(node: &NetworkNode, checkpoint: impl Into<f64>) {
+    if (node.restart(None).await).is_ok() {
+        warn!(
+            "{} was restarted at block {}",
+            node.name(),
+            checkpoint.into()
+        );
     } else {
         warn!("Error restarting {}", node.name());
     }
 }
 
-async fn progress(node: &NetworkNode, checkpoint:impl Into<f64>) -> Result<f64, anyhow::Error> {
+async fn progress(node: &NetworkNode, checkpoint: impl Into<f64>) -> Result<f64, anyhow::Error> {
     let metric = node.reports("block_height{status=\"best\"}").await?;
     let checkpoint = checkpoint.into();
     if metric > checkpoint {
-        trace!("{} is making progress, checkpoint {} - current {}", node.name(), checkpoint, metric);
+        trace!(
+            "{} is making progress, checkpoint {} - current {}",
+            node.name(),
+            checkpoint,
+            metric
+        );
+
         Ok(metric)
     } else {
-        Err(anyhow::anyhow!("node don't progress, current {metric} - checkpoint {checkpoint}"))
+        Err(anyhow::anyhow!(
+            "node don't progress, current {metric} - checkpoint {checkpoint}"
+        ))
     }
 }
 
@@ -346,7 +388,8 @@ async fn spawn(
     provider: DynProvider,
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
-    global_base_dir: Option<PathBuf>
+    global_base_dir: Option<PathBuf>,
+
 ) -> Result<Network<LocalFileSystem>, String> {
     let leaked_rust_log = env::var("RUST_LOG").unwrap_or_else(|_| {
         String::from(
@@ -506,7 +549,7 @@ async fn spawn(
             global_settings.with_base_dir(&fixed_base_dir.to_string_lossy().to_string())
         })
     } else {
-       config
+        config
     };
 
     let network_config = config.build().unwrap();
