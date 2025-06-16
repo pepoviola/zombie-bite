@@ -240,7 +240,6 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     .await
     .expect("Fail to spawn the new network");
 
-
     info!("🚀🚀🚀🚀 network deployed");
 
     // collect info
@@ -285,6 +284,8 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
             println!("Block #{}", block.unwrap().header().number);
         }
 
+        // copy rc info to this CI directory
+        let _ = fs::copy(rc_info_path, format!("{ci_path}/rc-info.txt")).await;
         // create info files
         let _ = fs::write(format!("{ci_path}/{PORTS_FILE}"), ports_content.to_string()).await;
         let _ = fs::write(format!("{ci_path}/{READY_FILE}"), ready_content.to_string()).await;
@@ -352,7 +353,6 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     }
 }
 
-
 async fn restart(node: &NetworkNode, checkpoint: impl Into<f64>) {
     if (node.restart(None).await).is_ok() {
         warn!(
@@ -389,7 +389,6 @@ async fn spawn(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
     global_base_dir: Option<PathBuf>,
-
 ) -> Result<Network<LocalFileSystem>, String> {
     let leaked_rust_log = env::var("RUST_LOG").unwrap_or_else(|_| {
         String::from(
