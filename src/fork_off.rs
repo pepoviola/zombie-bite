@@ -433,6 +433,13 @@ mod test {
     }
 
     #[test]
+    fn encode_empty_vec() {
+        let vec: Vec<u32> = vec![];
+        let encoded = vec.encode();
+        println!("{}", array_bytes::bytes2hex("0x", encoded));
+    }
+
+    #[test]
     fn twox256_works() {
         let idx: CoreIndex = 0.into();
         let zero = subhasher::twox256(idx.encode());
@@ -534,6 +541,13 @@ mod test {
             array_bytes::bytes2hex(
                 "0x",
                 substorager::storage_value_key(&b"Babe"[..], b"NextAuthorities")
+            )
+        );
+        println!(
+            "babe_epochDuration {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"Babe"[..], b"epochDuration")
             )
         );
         println!(

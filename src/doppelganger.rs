@@ -173,8 +173,8 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         ));
 
         para_artifacts.push(ChainArtifact {
-            cmd: context_para.cmd(),
-            chain: sync_chain,
+            cmd:  context_para.cmd(),
+            chain: if sync_chain.contains('/') { para.as_chain_string(&relay_chain.as_chain_string()) } else { sync_chain },
             spec_path: chain_spec_path,
             snap_path,
             override_wasm: para.wasm_overrides().map(str::to_string),
@@ -270,19 +270,21 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         "collator_port": collator.ws_uri().split(":").nth(2).unwrap(),
     });
 
-    if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
-        // ensure block production and move artifacts to make it reusable
-        let client = network
-            .get_node("alice")
-            .unwrap()
-            .wait_client::<zombienet_sdk::subxt::PolkadotConfig>()
-            .await
-            .unwrap();
-        let mut blocks = client.blocks().subscribe_finalized().await.unwrap().take(3);
+    // ensure block production
+    let client = network
+        .get_node("alice")
+        .unwrap()
+        .wait_client::<zombienet_sdk::subxt::PolkadotConfig>()
+        .await
+        .unwrap();
+    let mut blocks = client.blocks().subscribe_finalized().await.unwrap().take(3);
 
-        while let Some(block) = blocks.next().await {
-            println!("Block #{}", block.unwrap().header().number);
-        }
+    while let Some(block) = blocks.next().await {
+        println!("Block #{}", block.unwrap().header().number);
+    }
+
+    if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
+        // move artifacts to make it reusable
 
         // copy rc info to this CI directory
         let _ = fs::copy(rc_info_path, format!("{ci_path}/rc-info.txt")).await;
@@ -542,7 +544,7 @@ async fn spawn(
         }
     }
 
-    let config = if let Some(global_base_dir) = global_base_dir {
+    let config = if let Some(global_base_dir) = &global_base_dir {
         let fixed_base_dir = global_base_dir.canonicalize().unwrap().join("spawn");
         config.with_global_settings(|global_settings| {
             global_settings.with_base_dir(&fixed_base_dir.to_string_lossy().to_string())
@@ -561,20 +563,38 @@ async fn spawn(
     if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
         env::set_current_dir(&ci_path).expect("change current dir to ci should works");
     }
-    let network = orchestrator.spawn(network_config).await.unwrap();
 
-    // dump config
+
+    let network_result = orchestrator.spawn(network_config).await;
+
+    // dump config earlier if we can
     let config_toml_path = if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
-        format!("{ci_path}/config.toml")
+        Some(format!("{ci_path}/config.toml"))
+    } else if let Some(base_dir) = &global_base_dir {
+        Some(format!("{}/config.toml", base_dir.canonicalize().unwrap().join("spawn").to_string_lossy()))
     } else {
-        format!("{}/config.toml", network.base_dir().unwrap())
+        None
     };
 
-    tokio::fs::write(config_toml_path, toml_config)
-        .await
-        .unwrap();
+    if let Some(config_toml_path) = &config_toml_path {
+        tokio::fs::write(config_toml_path, &toml_config)
+            .await
+            .unwrap();
+    };
 
-    Ok(network)
+    match network_result {
+        Ok(network) => {
+            if config_toml_path.is_none() {
+                // dump config if isn't dumped yet
+                let config_toml_path = format!("{}/config.toml", network.base_dir().unwrap());
+                tokio::fs::write(config_toml_path, toml_config)
+                    .await
+                    .unwrap();
+                };
+            Ok(network)
+        },
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 // TODO: enable for multiple paras
