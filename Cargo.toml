@@ -1,16 +1,16 @@
 [package]
 name = "zombie-bite"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 default-run = "zombie-bite"
 
 
 [dependencies]
-zombienet-sdk = "0.2.29"
-zombienet-provider = "0.2.29"
-zombienet-orchestrator = "0.2.29"
-zombienet-support = "0.2.29"
-zombienet-configuration = "0.2.29"
+zombienet-sdk = "0.3.7"
+zombienet-provider = "0.3.7"
+zombienet-orchestrator = "0.3.7"
+zombienet-support = "0.3.7"
+zombienet-configuration = "0.3.7"
 tokio = "1"
 reqwest = "0.12"
 tracing-subscriber = "0.3.18"
