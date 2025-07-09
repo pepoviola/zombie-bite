@@ -89,7 +89,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     let mut syncs = vec![];
     for para in &paras_to {
         let para_default_overrides_path =
-            generate_default_overrides_for_para(&base_dir_str, para).await;
+            generate_default_overrides_for_para(&base_dir_str, para, &relay_chain).await;
         let info_path = format!("{base_dir_str}/para-{}.txt", para.id());
 
         syncs.push(
