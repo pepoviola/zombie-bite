@@ -133,7 +133,7 @@ pub async fn generate_default_overrides_for_rc(
     file_path
 }
 
-pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachain) -> PathBuf {
+pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachain, relay: &Relaychain) -> PathBuf {
     // Keys to inject (mostly storage maps that are not present in the current state)
     let injects = json!({
         // Session Nextkeys for `collator`
@@ -141,6 +141,13 @@ pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachai
         // Session KeyOwner
         "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
     });
+
+    // asset-hub-polkadot use ed key for aura
+    let aura_key = if relay.as_chain_string() == "polkadot" {
+        "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116"
+    } else {
+        "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15"
+    };
 
     // <Pallet> <Item>
     // e.g Validator Validators
@@ -152,9 +159,9 @@ pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachai
         // CollatorSelection Invulnerables (collator)
         "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         // Aura authorities
-        "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": aura_key,
         // AuraExt authorities
-        "3c311d57d4daf52904616cf69648081e5e0621c4869aa60c02be9adcc98a0d1d": "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        "3c311d57d4daf52904616cf69648081e5e0621c4869aa60c02be9adcc98a0d1d": aura_key,
         // parachainSystem lastDmqMqcHead (emtpy)
         "45323df7cc47150b3930e2666b0aa313911a5dd3f1155f5b7d0c5aa102a757f9": "0000000000000000000000000000000000000000000000000000000000000000",
         // CollatorSelection DesiredCandidates (set to 1)
