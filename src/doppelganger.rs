@@ -558,7 +558,8 @@ async fn spawn(
     // spawn the network
     let filesystem = LocalFileSystem;
     let orchestrator = Orchestrator::new(filesystem, provider);
-    let toml_config = network_config.dump_to_toml().unwrap();
+    // remove the base_dir from the toml config we store
+    let toml_config = network_config.dump_to_toml().unwrap().lines().filter(|l| !l.starts_with("base_dir = ")).collect::<Vec<&str>>().join("\n");
 
     if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
         env::set_current_dir(&ci_path).expect("change current dir to ci should works");
