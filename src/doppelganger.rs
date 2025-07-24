@@ -404,7 +404,7 @@ async fn spawn(
 
     let para_leaked_rust_log = env::var("RUST_LOG_COL").unwrap_or_else(|_| {
         String::from(
-            "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug",
+            "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,xcm=trace",
         )
     });
 

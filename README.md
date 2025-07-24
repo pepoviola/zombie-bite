@@ -64,7 +64,7 @@ _but_ you can override those by setting the `RUST_LOG` env, since the script wil
 And the parachain collators with this log levels:
 
 ```sh
-aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug
+aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,xcm=trace
 ```
 _but_ you can override those by setting the `RUST_LOG_COL` env, since the script will inject that env into the spawning logic.
 
