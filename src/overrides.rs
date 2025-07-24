@@ -78,7 +78,6 @@ pub async fn generate_default_overrides_for_rc(
         // RcMigrator Manager
         injects["2185d18cb42ae97242af0e70e6ad689012fcd13ee43ae32cc87f798eb5ed3295"] =
             Value::String(sudo_key);
-
     }
 
     if let Some(override_wasm) = relay.wasm_overrides() {
@@ -142,7 +141,11 @@ pub async fn generate_default_overrides_for_rc(
     file_path
 }
 
-pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachain, relay: &Relaychain) -> PathBuf {
+pub async fn generate_default_overrides_for_para(
+    base_dir: &str,
+    para: &Parachain,
+    relay: &Relaychain,
+) -> PathBuf {
     // Keys to inject (mostly storage maps that are not present in the current state)
     let injects = json!({
         // Session Nextkeys for `collator`
