@@ -173,8 +173,12 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         ));
 
         para_artifacts.push(ChainArtifact {
-            cmd:  context_para.cmd(),
-            chain: if sync_chain.contains('/') { para.as_chain_string(&relay_chain.as_chain_string()) } else { sync_chain },
+            cmd: context_para.cmd(),
+            chain: if sync_chain.contains('/') {
+                para.as_chain_string(&relay_chain.as_chain_string())
+            } else {
+                sync_chain
+            },
             spec_path: chain_spec_path,
             snap_path,
             override_wasm: para.wasm_overrides().map(str::to_string),
@@ -398,6 +402,12 @@ async fn spawn(
         )
     });
 
+    let para_leaked_rust_log = env::var("RUST_LOG_COL").unwrap_or_else(|_| {
+        String::from(
+            "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,xcm=trace",
+        )
+    });
+
     let (chain_spec_path, db_path) = if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
         let chain_spec_path = PathBuf::from(relaychain.spec_path.as_str());
         let chain_spec_filename = chain_spec_path
@@ -513,33 +523,30 @@ async fn spawn(
                 get_random_port().await
             };
 
-            config = config.with_parachain(|p|{
-                let para_builder = p.with_id(1000)
-                .with_chain(para.chain.as_str())
-                .with_default_command(para.cmd.as_str())
-                .with_chain_spec_path(chain_spec_path)
-                .with_default_db_snapshot(db_path);
+            config = config.with_parachain(|p| {
+                let para_builder = p
+                    .with_id(1000)
+                    .with_chain(para.chain.as_str())
+                    .with_default_command(para.cmd.as_str())
+                    .with_chain_spec_path(chain_spec_path)
+                    .with_default_db_snapshot(db_path);
 
-                // we override the runtime in the state now
-                // para_builder = if let Some(override_path) = para.override_wasm {
-                //     para_builder.with_wasm_override(override_path.as_str())
-                // } else {
-                //     para_builder
-                // };
-
-                para_builder.with_collator(|c|
-                    c
-                        .with_name("collator")
+                para_builder.with_collator(|c| {
+                    c.with_name("collator")
                         .with_rpc_port(para_rpc_port)
                         .with_args(vec![
-                            ("--relay-chain-rpc-urls", format!("ws://127.0.0.1:{rpc_port}").as_str()).into(),
-                            ("-l", "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug").into(),
+                            (
+                                "--relay-chain-rpc-urls",
+                                format!("ws://127.0.0.1:{rpc_port}").as_str(),
+                            )
+                                .into(),
+                            ("-l", para_leaked_rust_log.as_str()).into(),
                             "--force-authoring".into(),
                             "--discover-local".into(),
                             "--allow-private-ip".into(),
                             "--no-hardware-benchmarks".into(),
                         ])
-                )
+                })
             })
         }
     }
@@ -559,12 +566,17 @@ async fn spawn(
     let filesystem = LocalFileSystem;
     let orchestrator = Orchestrator::new(filesystem, provider);
     // remove the base_dir from the toml config we store
-    let toml_config = network_config.dump_to_toml().unwrap().lines().filter(|l| !l.starts_with("base_dir = ")).collect::<Vec<&str>>().join("\n");
+    let toml_config = network_config
+        .dump_to_toml()
+        .unwrap()
+        .lines()
+        .filter(|l| !l.starts_with("base_dir = "))
+        .collect::<Vec<&str>>()
+        .join("\n");
 
     if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
         env::set_current_dir(&ci_path).expect("change current dir to ci should works");
     }
-
 
     let network_result = orchestrator.spawn(network_config).await;
 
@@ -572,7 +584,14 @@ async fn spawn(
     let config_toml_path = if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
         Some(format!("{ci_path}/config.toml"))
     } else if let Some(base_dir) = &global_base_dir {
-        Some(format!("{}/config.toml", base_dir.canonicalize().unwrap().join("spawn").to_string_lossy()))
+        Some(format!(
+            "{}/config.toml",
+            base_dir
+                .canonicalize()
+                .unwrap()
+                .join("spawn")
+                .to_string_lossy()
+        ))
     } else {
         None
     };
@@ -591,9 +610,9 @@ async fn spawn(
                 tokio::fs::write(config_toml_path, toml_config)
                     .await
                     .unwrap();
-                };
+            };
             Ok(network)
-        },
+        }
         Err(e) => Err(e.to_string()),
     }
 }

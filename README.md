@@ -54,12 +54,19 @@ cargo run -- polkadot:./runtime_wasm/polkadot_runtime.compact.compressed.wasm as
 
 ##### Log level:
 
-By default the nodes are spawned with this log leves:
+By default the relaychain nodes are spawned with this log levesl:
 
 ```sh
 babe=trace,grandpa=trace,runtime=debug,consensus::common=trace,parachain=debug,sync=debug
 ```
 _but_ you can override those by setting the `RUST_LOG` env, since the script will inject that env into the spawning logic.
+
+And the parachain collators with this log levels:
+
+```sh
+aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,xcm=trace
+```
+_but_ you can override those by setting the `RUST_LOG_COL` env, since the script will inject that env into the spawning logic.
 
 
 ##### Override / Inject Keys:
