@@ -665,6 +665,15 @@ mod test {
             "Sudo_Key {}",
             array_bytes::bytes2hex("0x", substorager::storage_value_key(&b"Sudo"[..], b"Key"))
         );
+
+        println!(
+            "RcMigrator_Manager {}",
+            array_bytes::bytes2hex(
+                "0x",
+                substorager::storage_value_key(&b"RcMigrator"[..], b"Manager")
+            )
+        );
+
         println!("prefix: {prefix}");
         println!("invulnerables: {inv}");
     }

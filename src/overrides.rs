@@ -16,7 +16,9 @@ pub async fn generate_default_overrides_for_rc(
         // Session NextKeys (alice)
         "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb3e535263148daaf49be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25f": "88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0eed43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d020a1091341fe5664bfa1782d5e04779689068c916b04cb365ec3153755684d9a1",
         // Session NextKeys (bob)
-        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb30e5be00fbc2e15b5fe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e": "d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae698eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a480390084fdbf27d2b79d26a4f13f0ccd982cb755a661969143c37cbc49ef5b91f27"
+        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb30e5be00fbc2e15b5fe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e": "d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae698eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a480390084fdbf27d2b79d26a4f13f0ccd982cb755a661969143c37cbc49ef5b91f27",
+        // RcMigrator Manager (set //Alice by default) see: https://github.com/polkadot-fellows/runtimes/blob/22116f7d02c220db4f7187c6967dbd6bf89274cf/pallets/rc-migrator/src/lib.rs#L702-L707
+        "2185d18cb42ae97242af0e70e6ad689012fcd13ee43ae32cc87f798eb5ed3295": "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
     });
 
     // <Pallet> <Item>
@@ -67,8 +69,14 @@ pub async fn generate_default_overrides_for_rc(
         "5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b": "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
     });
 
+    // update the overrides / injects map to use IFF the key is provided
     if let Ok(sudo_key) = env::var("ZOMBIE_SUDO") {
+        // Sudo Key
         overrides["5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b"] =
+            Value::String(sudo_key.clone());
+
+        // RcMigrator Manager
+        injects["2185d18cb42ae97242af0e70e6ad689012fcd13ee43ae32cc87f798eb5ed3295"] =
             Value::String(sudo_key);
     }
 
@@ -133,7 +141,11 @@ pub async fn generate_default_overrides_for_rc(
     file_path
 }
 
-pub async fn generate_default_overrides_for_para(base_dir: &str, para: &Parachain, relay: &Relaychain) -> PathBuf {
+pub async fn generate_default_overrides_for_para(
+    base_dir: &str,
+    para: &Parachain,
+    relay: &Relaychain,
+) -> PathBuf {
     // Keys to inject (mostly storage maps that are not present in the current state)
     let injects = json!({
         // Session Nextkeys for `collator`
