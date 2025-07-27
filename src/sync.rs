@@ -15,7 +15,8 @@ use zombienet_orchestrator::metrics::{Metrics, MetricsHelper};
 use zombienet_provider::{types::SpawnNodeOptions, DynNamespace, DynNode};
 use zombienet_support::net::wait_ws_ready;
 
-const PASEO_ASSET_HUB_SPEC_URL: &str = "https://paseo-r2.zondax.ch/chain-specs/paseo-asset-hub.json";
+const PASEO_ASSET_HUB_SPEC_URL: &str =
+    "https://paseo-r2.zondax.ch/chain-specs/paseo-asset-hub.json";
 
 pub async fn sync_relay_only(
     ns: DynNamespace,
@@ -45,7 +46,6 @@ pub async fn sync_relay_only(
     if chain.as_ref() == "paseo" {
         env.push(("ZOMBIE_RC_EPOCH_DURATION".into(), "600".into()));
     }
-
 
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node", cmd.as_ref())
@@ -113,14 +113,16 @@ pub async fn sync_para(
     env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
 
     println!("env: {env:?}");
-    let dest_for_paseo = format!(
-        "{}/paseo-asset-hub.json",
-        ns.base_dir().to_string_lossy(),
-    );
+    let dest_for_paseo = format!("{}/paseo-asset-hub.json", ns.base_dir().to_string_lossy(),);
     let chain_arg = if chain.as_ref() == "asset-hub-paseo" {
         // get chain spec from https://paseo-r2.zondax.ch/chain-specs/paseo-asset-hub.json
-        let response = reqwest::get(PASEO_ASSET_HUB_SPEC_URL).await.expect(&format!("Download paseo-asset-hub.json from {PASEO_ASSET_HUB_SPEC_URL} should work."));
-        let mut file = std::fs::File::create(&dest_for_paseo).expect(&format!("Create file {dest_for_paseo} should work"));
+        let response = reqwest::get(PASEO_ASSET_HUB_SPEC_URL)
+            .await
+            .expect(&format!(
+                "Download paseo-asset-hub.json from {PASEO_ASSET_HUB_SPEC_URL} should work."
+            ));
+        let mut file = std::fs::File::create(&dest_for_paseo)
+            .expect(&format!("Create file {dest_for_paseo} should work"));
         let mut content = Cursor::new(response.bytes().await.expect("Create cursor should works."));
         std::io::copy(&mut content, &mut file).expect("Copy bytes should works.");
         dest_for_paseo.as_str()

@@ -336,12 +336,13 @@ async fn wait_sync(url: impl Into<Url>) -> Result<(), anyhow::Error> {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() {
+    let filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env_lossy()
+        .add_directive("zombie=info".parse().expect("'zombie=info' should be a valid directive"));
+
     tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
+        .with_env_filter(filter)
         .init();
 
     let args: Vec<_> = env::args().collect();
