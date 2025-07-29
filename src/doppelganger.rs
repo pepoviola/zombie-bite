@@ -127,7 +127,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         generate_chain_spec(
             ns.clone(),
             &chain_spec_path,
-            &context_para.cmd(),
+            &context_para.doppelganger_cmd(),
             &sync_chain,
         )
         .await
@@ -173,7 +173,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         ));
 
         para_artifacts.push(ChainArtifact {
-            cmd: context_para.cmd(),
+            cmd: context_para.doppelganger_cmd(),
             chain: if sync_chain.contains('/') {
                 para.as_chain_string(&relay_chain.as_chain_string())
             } else {
@@ -210,7 +210,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     generate_chain_spec(
         ns.clone(),
         &r_chain_spec_path,
-        &context_relay.cmd(),
+        &context_relay.doppelganger_cmd(),
         &sync_chain,
     )
     .await
@@ -228,7 +228,7 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
     generate_snap(&sync_db_path, &r_snap_path).await.unwrap();
 
     let relay_artifacts = ChainArtifact {
-        cmd: "doppelganger".into(),
+        cmd: context_relay.doppelganger_cmd(),
         chain: sync_chain,
         spec_path: r_chain_spec_path,
         snap_path: r_snap_path,
