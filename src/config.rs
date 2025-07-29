@@ -38,6 +38,14 @@ impl Context {
             "polkadot-parachain"
         })
     }
+
+    pub fn doppelganger_cmd(&self) -> String {
+        String::from(if *self == Context::Relaychain {
+            "doppelganger"
+        } else {
+            "doppelganger-parachain"
+        })
+    }
 }
 
 type MaybeWasmOverridePath = Option<String>;
