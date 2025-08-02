@@ -104,5 +104,5 @@ pub fn get_base_path(cli_base_path: Option<String>) -> PathBuf {
         }
     };
 
-    global_base_path
+    global_base_path.canonicalize().unwrap()
 }
