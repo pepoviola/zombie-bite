@@ -4,7 +4,64 @@
 use std::env;
 
 use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
+const BITE: &str = "bite";
+const SPAWN: &str = "spawn";
+const POST: &str = "post";
+const DEBUG: &str = "debug";
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Step {
+    /// Initial step
+    Bite,
+    /// Spawn from `bite` directory
+    Spawn,
+    /// Spawn from `spawn` directory
+    Post,
+}
+
+impl Step {
+    pub fn dir(&self) -> String {
+        match self {
+            Step::Bite => String::from(BITE),
+            Step::Spawn => String::from(SPAWN),
+            Step::Post => String::from(POST),
+        }
+    }
+
+    pub fn dir_debug(&self) -> String {
+        match self {
+            Step::Bite => format!("{BITE}-{DEBUG}"),
+            Step::Spawn => format!("{SPAWN}-{DEBUG}"),
+            Step::Post => format!("{POST}-{DEBUG}"),
+        }
+    }
+
+    pub fn dir_from(&self) -> String {
+        match self {
+            Step::Bite => String::from(""), // emtpy since is initial step
+            Step::Spawn => String::from(BITE),
+            Step::Post => String::from(SPAWN),
+        }
+    }
+
+    pub fn next(&self) -> Option<String> {
+        match self {
+            Step::Bite => Some(String::from(SPAWN)),
+            Step::Spawn => Some(String::from(POST)),
+            Step::Post => None, // emtpy since is the last step
+        }
+    }
+}
+
+impl From<String> for Step {
+    fn from(value: String) -> Self {
+        match value.to_ascii_lowercase().as_str() {
+            "post" => Step::Post,
+            "spawn" => Step::Spawn,
+            _ => Step::Bite,
+        }
+    }
+}
 #[derive(Debug, PartialEq)]
 pub enum BiteMethod {
     DoppelGanger,
@@ -49,41 +106,86 @@ impl Context {
 }
 
 type MaybeWasmOverridePath = Option<String>;
+type MaybeSyncUrl = Option<String>;
 
 #[derive(Debug, PartialEq)]
 pub enum Relaychain {
-    Polkadot(MaybeWasmOverridePath),
-    Kusama(MaybeWasmOverridePath),
-    Westend(MaybeWasmOverridePath),
-    Paseo(MaybeWasmOverridePath),
+    Polkadot {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_sync_url: MaybeSyncUrl,
+    },
+    Kusama {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_sync_url: MaybeSyncUrl,
+    },
+
+    Paseo {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_sync_url: MaybeSyncUrl,
+    },
 }
 
 impl Relaychain {
+    pub fn new(network: impl AsRef<str>) -> Self {
+        match network.as_ref() {
+            "kusama" => Self::Kusama {
+                maybe_override: None,
+                maybe_sync_url: None,
+            },
+            "paseo" => Self::Paseo {
+                maybe_override: None,
+                maybe_sync_url: None,
+            },
+            _ => Self::Polkadot {
+                maybe_override: None,
+                maybe_sync_url: None,
+            },
+        }
+    }
+
+    pub fn new_with_values(
+        network: impl AsRef<str>,
+        maybe_override: MaybeWasmOverridePath,
+        maybe_sync_url: MaybeSyncUrl,
+    ) -> Self {
+        match network.as_ref() {
+            "kusama" => Self::Kusama {
+                maybe_override,
+                maybe_sync_url,
+            },
+            "paseo" => Self::Paseo {
+                maybe_override,
+                maybe_sync_url,
+            },
+            _ => Self::Polkadot {
+                maybe_override,
+                maybe_sync_url,
+            },
+        }
+    }
+
     pub fn as_local_chain_string(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot(_) => "polkadot-local",
-            Relaychain::Kusama(_) => "kusama-local",
-            Relaychain::Westend(_) => "westend-local",
-            Relaychain::Paseo(_) => "paseo-local",
+            Relaychain::Polkadot { .. } => "polkadot-local",
+            Relaychain::Kusama { .. } => "kusama-local",
+            Relaychain::Paseo { .. } => "paseo-local",
         })
     }
 
     pub fn as_chain_string(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot(_) => "polkadot",
-            Relaychain::Kusama(_) => "kusama",
-            Relaychain::Westend(_) => "westend",
-            Relaychain::Paseo(_) => "paseo",
+            Relaychain::Polkadot { .. } => "polkadot",
+            Relaychain::Kusama { .. } => "kusama",
+            Relaychain::Paseo { .. } => "paseo",
         })
     }
 
     // TODO: make this endpoints configurables
     pub fn sync_endpoint(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot(_) => "wss://polkadot-rpc.dwellir.com",
-            Relaychain::Kusama(_) => "wss://kusama-rpc.dwellir.com",
-            Relaychain::Westend(_) => "wss://westend-rpc.polkadot.io",
-            Relaychain::Paseo(_) => "wss://paseo-rpc.dwellir.com",
+            Relaychain::Polkadot { .. } => "wss://polkadot-rpc.dwellir.com",
+            Relaychain::Kusama { .. } => "wss://kusama-rpc.dwellir.com",
+            Relaychain::Paseo { .. } => "wss://paseo-rpc.dwellir.com",
         })
     }
 
@@ -93,16 +195,15 @@ impl Relaychain {
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Relaychain::Kusama(x)
-            | Relaychain::Polkadot(x)
-            | Relaychain::Westend(x)
-            | Relaychain::Paseo(x) => x.as_deref(),
+            Relaychain::Kusama { maybe_override, .. }
+            | Relaychain::Polkadot { maybe_override, .. }
+            | Relaychain::Paseo { maybe_override, .. } => maybe_override.as_deref(),
         }
     }
 
     pub fn epoch_duration(&self) -> u64 {
         match self {
-            Relaychain::Paseo(_) => 600,
+            Relaychain::Paseo { .. } => 600,
             _ => 2400,
         }
     }
@@ -180,8 +281,8 @@ pub fn generate_network_config(
     let para_context = Context::Parachain;
 
     let chain_spec_cmd = match network {
-        Relaychain::Polkadot(_) | Relaychain::Kusama(_) => CMD_TPL,
-        Relaychain::Westend(_) | Relaychain::Paseo(_) => DEFAULT_CHAIN_SPEC_TPL_COMMAND,
+        Relaychain::Polkadot { .. } | Relaychain::Kusama { .. } => CMD_TPL,
+        Relaychain::Paseo { .. } => DEFAULT_CHAIN_SPEC_TPL_COMMAND,
     };
 
     let network_builder = NetworkConfigBuilder::new().with_relaychain(|r| {
@@ -256,14 +357,14 @@ mod test {
 
     #[test]
     fn config_ok() {
-        let config = generate_network_config(&Relaychain::Kusama(None), vec![]).unwrap();
+        let config = generate_network_config(&Relaychain::new("kusama"), vec![]).unwrap();
         assert_eq!(0, config.parachains().len());
     }
 
     #[test]
     fn config_with_para_ok() {
         let config =
-            generate_network_config(&Relaychain::Kusama(None), vec![Parachain::Coretime(None)])
+            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::Coretime(None)])
                 .unwrap();
         let parachain = config.parachains().first().unwrap().chain().unwrap();
         assert_eq!(parachain.as_str(), "coretime-kusama-local");
@@ -272,7 +373,7 @@ mod test {
     #[tokio::test]
     async fn spec() {
         let config =
-            generate_network_config(&Relaychain::Kusama(None), vec![Parachain::AssetHub(None)])
+            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::AssetHub(None)])
                 .unwrap();
         println!("config: {:#?}", config);
         let spec = zombienet_orchestrator::NetworkSpec::from_config(&config)

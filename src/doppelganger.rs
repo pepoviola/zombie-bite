@@ -1,46 +1,45 @@
 #![allow(dead_code)]
 // TODO: don't allow dead_code
 
+use anyhow::anyhow;
 use futures::future::try_join_all;
-use futures::{FutureExt, StreamExt};
+use futures::FutureExt;
 use serde_json::json;
+// use serde_json::json;
 use std::fs::{read_to_string, File};
 use std::path::Path;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
-use std::time::{Duration, SystemTime};
 use tokio::fs;
-use zombienet_sdk::NetworkNode;
+use zombienet_sdk::NetworkConfig;
 
 use codec::Encode;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use tar::Builder;
 
-use tracing::info;
-use tracing::{debug, trace, warn};
+use tracing::debug;
+use tracing::{info, trace};
 use zombienet_configuration::NetworkConfigBuilder;
 use zombienet_orchestrator::network::Network;
 use zombienet_orchestrator::Orchestrator;
 use zombienet_provider::types::RunCommandOptions;
 use zombienet_provider::types::SpawnNodeOptions;
 use zombienet_provider::DynNamespace;
-use zombienet_provider::DynProvider;
 use zombienet_provider::NativeProvider;
 use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
-use crate::utils::{para_head_key, HeadData};
+use crate::utils::{get_random_port, para_head_key, HeadData};
 
-use crate::config::{Context, Parachain, Relaychain};
+use crate::config::{Context, Parachain, Relaychain, Step};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use crate::sync::{sync_para, sync_relay_only};
-use crate::utils::get_random_port;
 
 use std::env;
 
-const CHECK_TIMEOUT_SECS: u64 = 900; // 15 mins
 const PORTS_FILE: &str = "ports.json";
 const READY_FILE: &str = "ready.json";
 
@@ -53,7 +52,11 @@ struct ChainArtifact {
     override_wasm: Option<String>,
 }
 
-pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain>) {
+pub async fn doppelganger_inner(
+    global_base_dir: PathBuf,
+    relay_chain: Relaychain,
+    paras_to: Vec<Parachain>,
+) -> Result<(), anyhow::Error> {
     // Star the node and wait until finish (with temp dir managed by us)
     info!(
         "🪞 Starting DoppelGanger process for {} and {:?}",
@@ -63,16 +66,16 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
 
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
-    let epoch_ms = get_epoch_ms();
+    // let epoch_ms = get_epoch_ms();
 
-    let global_base_dir = if let Ok(fixed_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
-        PathBuf::from_str(&fixed_path).unwrap()
-    } else {
-        PathBuf::from_str(format!("/tmp/zombie-bite_{epoch_ms}").as_str()).unwrap()
-    };
+    // let global_base_dir = if let Ok(fixed_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
+    //     PathBuf::from_str(&fixed_path).unwrap()
+    // } else {
+    //     PathBuf::from_str(format!("/tmp/zombie-bite_{epoch_ms}").as_str()).unwrap()
+    // };
 
     // ensure the base path exist
-    tokio::fs::create_dir_all(&global_base_dir).await.unwrap();
+    fs::create_dir_all(&global_base_dir).await.unwrap();
 
     // add `/bite` to global base
     let fixed_base_dir = global_base_dir.canonicalize().unwrap().join("bite");
@@ -235,27 +238,27 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
     };
 
-    let network = spawn(
-        provider,
+    let config = generate_config(
         relay_artifacts,
         para_artifacts,
         Some(global_base_dir.clone()),
     )
     .await
-    .expect("Fail to spawn the new network");
+    .map_err(|e| anyhow!(e.to_string()))?;
+    // write config in 'bite'
+    let config_toml_path = format!("{}/bite/config.toml", global_base_dir.to_string_lossy());
+    let toml_config = config.dump_to_toml()?;
+    fs::write(config_toml_path, &toml_config)
+        .await
+        .expect("create config.toml should works");
 
-    info!("🚀🚀🚀🚀 network deployed");
-
-    // collect info
-    let alice = network.get_node("alice").unwrap();
-    let bob = network.get_node("bob").unwrap();
-    let collator = network.get_node("collator").unwrap();
-
+    // create port and ready files
     let rc_start_block = fs::read_to_string(format!("{base_dir_str}/rc_info.txt"))
         .await
         .unwrap()
         .parse::<u64>()
         .expect("read bite rc block should works");
+
     let ah_start_block = fs::read_to_string(format!("{base_dir_str}/para-1000.txt"))
         .await
         .unwrap()
@@ -268,137 +271,200 @@ pub async fn doppelganger_inner(relay_chain: Relaychain, paras_to: Vec<Parachain
         "ah_start_block": ah_start_block,
     });
 
+    let alice_config = config
+        .relaychain()
+        .nodes()
+        .into_iter()
+        .find(|node| node.name() == "alice")
+        .expect("'alice' should exist");
+
+    let ah_config = config
+        .parachains()
+        .into_iter()
+        .last()
+        .expect("shoul be one parachain");
+    let collator_config = ah_config
+        .collators()
+        .into_iter()
+        .last()
+        .expect("should be one collator");
+
     // ports
     let ports_content = json!({
-        "alice_port" : alice.ws_uri().split(":").nth(2).unwrap(),
-        "collator_port": collator.ws_uri().split(":").nth(2).unwrap(),
+        "alice_port" : alice_config.rpc_port().unwrap(),
+        "collator_port": collator_config.rpc_port().unwrap(),
     });
 
-    // ensure block production
-    let client = network
-        .get_node("alice")
-        .unwrap()
-        .wait_client::<zombienet_sdk::subxt::PolkadotConfig>()
+    let _ = fs::write(
+        format!("{}/{PORTS_FILE}", global_base_dir.to_string_lossy()),
+        ports_content.to_string(),
+    )
+    .await;
+    let _ = fs::write(
+        format!("{}/{READY_FILE}", global_base_dir.to_string_lossy()),
+        ready_content.to_string(),
+    )
+    .await;
+
+    clean_up_dir_for_step(global_base_dir, Step::Bite, &relay_chain).await?;
+
+    Ok(())
+}
+
+/// Create the needed artifats for the next step
+pub async fn generate_artifacts(
+    global_base_dir: PathBuf,
+    step: Step,
+    rc: &Relaychain,
+) -> Result<(), anyhow::Error> {
+    let global_base_dir_str = global_base_dir.to_string_lossy();
+
+    // generate snapshot for alice (rc)
+    let alice_data = format!("{global_base_dir_str}/{}/alice/data", step.dir());
+
+    // // remove `parachains` db
+    // let parachains_path = format!("{alice_data}/chains/{}/db/full/parachains", rc.as_chain_string());
+    // debug!("Deleting `parachains` db at {parachains_path}");
+    // fs::remove_dir_all(parachains_path)
+    //     .await
+    //     .expect("remove parachains db should work");
+
+    let alice_rc_snap_file = format!("alice-{}-snap.tgz", rc.as_chain_string());
+    let alice_rc_snap_path = format!("{global_base_dir_str}/{}/{alice_rc_snap_file}", step.dir());
+    generate_snap(&alice_data, &alice_rc_snap_path).await?;
+
+    // generate snapshot for alice (rc)
+    let bob_data = format!("{global_base_dir_str}/{}/bob/data", step.dir());
+    let bob_rc_snap_file = format!("bob-{}-snap.tgz", rc.as_chain_string());
+    let bob_rc_snap_path = format!("{global_base_dir_str}/{}/{bob_rc_snap_file}", step.dir());
+    generate_snap(&bob_data, &bob_rc_snap_path).await?;
+
+    // generate snapshot for collator
+    let collator_data = format!("{global_base_dir_str}/{}/collator/data", step.dir());
+    let ah_snap_file = format!("asset-hub-{}-snap.tgz", rc.as_chain_string());
+    let ah_snap_path = format!("{global_base_dir_str}/{}/{ah_snap_file}", step.dir());
+    generate_snap(&collator_data, &ah_snap_path).await?;
+
+    // cp chain-spec for rc
+    let rc_spec_file = format!("{}-spec.json", rc.as_chain_string());
+    let rc_spec_from = format!("{global_base_dir_str}/{}/{rc_spec_file}", step.dir_from());
+    let rc_spec_to = format!("{global_base_dir_str}/{}/{rc_spec_file}", step.dir());
+    fs::copy(&rc_spec_from, &rc_spec_to)
         .await
-        .unwrap();
-    let mut blocks = client.blocks().subscribe_finalized().await.unwrap().take(3);
+        .expect("cp should work");
 
-    while let Some(block) = blocks.next().await {
-        println!("Block #{}", block.unwrap().header().number);
-    }
+    // cp chain-spec for ah
+    let ah_spec_file = format!("asset-hub-{}-spec.json", rc.as_chain_string());
+    let ah_spec_from = format!("{global_base_dir_str}/{}/{ah_spec_file}", step.dir_from());
+    let ah_spec_to = format!("{global_base_dir_str}/{}/{ah_spec_file}", step.dir());
+    fs::copy(&ah_spec_from, &ah_spec_to)
+        .await
+        .expect("cp should work");
 
-    if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
-        // move artifacts to make it reusable
+    let mut snaps = vec![alice_rc_snap_path, bob_rc_snap_path, ah_snap_path];
+    let mut specs = vec![rc_spec_to, ah_spec_to];
 
-        // copy rc info to this CI directory
-        let _ = fs::copy(rc_info_path, format!("{ci_path}/rc-info.txt")).await;
-        // create info files
-        let _ = fs::write(format!("{ci_path}/{PORTS_FILE}"), ports_content.to_string()).await;
-        let _ = fs::write(format!("{ci_path}/{READY_FILE}"), ready_content.to_string()).await;
-
-        info!("teardown network...");
-        // shutdown the network
-        // network.destroy().await.unwrap();
-    } else {
-        // monitoring block production every 15 mins
-        // but first wait until the collator reply the metrics
-        let _ = collator
-            .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
-            .await
-            .unwrap();
-
-        // create info files
-        let _ = fs::write(
-            format!("{}/{PORTS_FILE}", &global_base_dir.to_string_lossy()),
-            ports_content.to_string(),
-        )
-        .await;
-        let _ = fs::write(
-            format!("{}/{READY_FILE}", &global_base_dir.to_string_lossy()),
-            ready_content.to_string(),
-        )
-        .await;
-
-        let mut alice_block = progress(alice, 0).await.expect("first check should works");
-        let mut bob_block = progress(bob, 0).await.expect("first check should works");
-        let mut collator_block = progress(collator, 0)
-            .await
-            .expect("first check should works");
-
-        loop {
-            tokio::time::sleep(Duration::from_secs(CHECK_TIMEOUT_SECS)).await;
-            // check the progress
-            // alice
-            let mut alice_was_restarted = false;
-            if let Ok(block) = progress(alice, alice_block).await {
-                alice_block = block;
-            } else {
-                // restart alice / collator
-                restart(alice, alice_block).await;
-                restart(collator, collator_block).await;
-                alice_was_restarted = true;
-            }
-
-            // bob
-            if let Ok(block) = progress(bob, bob_block).await {
-                bob_block = block;
-            } else {
-                // restart alice / collator
-                restart(bob, bob_block).await;
-            }
-
-            if !alice_was_restarted {
-                if let Ok(block) = progress(collator, collator_block).await {
-                    collator_block = block;
-                } else {
-                    // restart alice / collator
-                    restart(collator, collator_block).await;
+    // generate custom config
+    let from_config_path = format!("{global_base_dir_str}/{}/config.toml", step.dir_from());
+    let config = fs::read_to_string(&from_config_path)
+        .await
+        .expect("read config file should work");
+    let toml_config = config
+        .lines()
+        .map(|l| {
+            match l {
+                l if l.starts_with("default_db_snapshot =") => {
+                    String::from("") // emty to remove
                 }
+                l if l.starts_with("name =") => {
+                    let snap_line = format!(r#"db_snapshot = "{}""#, snaps.remove(0));
+                    trace!("setting {snap_line}");
+                    format!("{l}\n{snap_line}")
+                }
+                l if l.starts_with("chain_spec_path =") => {
+                    let new_l = format!(r#"chain_spec_path = "{}""#, specs.remove(0));
+                    trace!("setting {new_l}");
+                    new_l
+                }
+                _ => l.to_string(),
             }
-        }
-    }
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+
+    // write config in 'dir'
+    let config_toml_path = format!("{global_base_dir_str}/{}/config.toml", step.dir());
+    fs::write(config_toml_path, &toml_config)
+        .await
+        .expect("create config.toml should works");
+
+    Ok(())
 }
 
-async fn restart(node: &NetworkNode, checkpoint: impl Into<f64>) {
-    if (node.restart(None).await).is_ok() {
-        warn!(
-            "{} was restarted at block {}",
-            node.name(),
-            checkpoint.into()
-        );
+pub async fn clean_up_dir_for_step(
+    global_base_dir: PathBuf,
+    step: Step,
+    rc: &Relaychain,
+) -> Result<(), anyhow::Error> {
+    let global_base_dir_str = global_base_dir.to_string_lossy();
+    // clean bite directory to leave only the needed artifacts
+    let debug_path = format!("{global_base_dir_str}/{}", step.dir_debug());
+
+    // if we already have a debug path, remove it
+    if let Ok(true) = fs::try_exists(&debug_path).await {
+        fs::remove_dir_all(&debug_path)
+            .await
+            .expect("remove debug dir should works");
+    }
+
+    let step_path = format!("{global_base_dir_str}/{}", step.dir());
+    fs::rename(&step_path, &debug_path)
+        .await
+        .expect("rename dir should works");
+
+    // create the step dir again
+    fs::create_dir_all(&step_path)
+        .await
+        .expect("Create step dir should works");
+
+    // copy needed files
+    let ah_spec = format!("asset-hub-{}-spec.json", rc.as_chain_string());
+    let ah_snap = format!("asset-hub-{}-snap.tgz", rc.as_chain_string());
+    let rc_spec = format!("{}-spec.json", rc.as_chain_string());
+    let mut needed_files = vec![
+        "config.toml",
+        ah_spec.as_str(),
+        ah_snap.as_str(),
+        rc_spec.as_str(),
+    ];
+
+    if step == Step::Bite {
+        needed_files.push("polkadot-snap.tgz");
     } else {
-        warn!("Error restarting {}", node.name());
+        needed_files.push("alice-polkadot-snap.tgz");
+        needed_files.push("bob-polkadot-snap.tgz");
     }
+
+    for file in needed_files {
+        let from = format!("{debug_path}/{file}");
+        let to = format!("{step_path}/{file}");
+        info!("mv {from} {to}");
+        fs::rename(&from, &to)
+            .await
+            .expect("copy file to bite should works");
+    }
+
+    Ok(())
 }
 
-async fn progress(node: &NetworkNode, checkpoint: impl Into<f64>) -> Result<f64, anyhow::Error> {
-    let metric = node.reports("block_height{status=\"best\"}").await?;
-    let checkpoint = checkpoint.into();
-    if metric > checkpoint {
-        trace!(
-            "{} is making progress, checkpoint {} - current {}",
-            node.name(),
-            checkpoint,
-            metric
-        );
-
-        Ok(metric)
-    } else {
-        Err(anyhow::anyhow!(
-            "node don't progress, current {metric} - checkpoint {checkpoint}"
-        ))
-    }
-}
-
-async fn spawn(
-    provider: DynProvider,
+async fn generate_config(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
     global_base_dir: Option<PathBuf>,
-) -> Result<Network<LocalFileSystem>, String> {
-    let leaked_rust_log = env::var("RUST_LOG").unwrap_or_else(|_| {
+) -> Result<NetworkConfig, String> {
+    let leaked_rust_log = env::var("RUST_LOG_RC").unwrap_or_else(|_| {
         String::from(
-            "babe=trace,grandpa=info,runtime=trace,consensus::common=trace,parachain=debug",
+            "babe=trace,grandpa=info,runtime=trace,consensus::common=trace,parachain=debug,parachain::gossip-support=info",
         )
     });
 
@@ -561,75 +627,56 @@ async fn spawn(
     };
 
     let network_config = config.build().unwrap();
-
-    // spawn the network
-    let filesystem = LocalFileSystem;
-    let orchestrator = Orchestrator::new(filesystem, provider);
-    // remove the base_dir from the toml config we store
-    let toml_config = network_config
-        .dump_to_toml()
-        .unwrap()
-        .lines()
-        .filter(|l| !l.starts_with("base_dir = "))
-        .collect::<Vec<&str>>()
-        .join("\n");
-
-    if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
-        env::set_current_dir(&ci_path).expect("change current dir to ci should works");
-    }
-
-    let network_result = orchestrator.spawn(network_config).await;
-
-    // dump config earlier if we can
-    let config_toml_path = if let Ok(ci_path) = env::var("ZOMBIE_BITE_CI_PATH") {
-        Some(format!("{ci_path}/config.toml"))
-    } else if let Some(base_dir) = &global_base_dir {
-        Some(format!(
-            "{}/config.toml",
-            base_dir
-                .canonicalize()
-                .unwrap()
-                .join("spawn")
-                .to_string_lossy()
-        ))
-    } else {
-        None
-    };
-
-    if let Some(config_toml_path) = &config_toml_path {
-        tokio::fs::write(config_toml_path, &toml_config)
-            .await
-            .unwrap();
-    };
-
-    match network_result {
-        Ok(network) => {
-            if config_toml_path.is_none() {
-                // dump config if isn't dumped yet
-                let config_toml_path = format!("{}/config.toml", network.base_dir().unwrap());
-                tokio::fs::write(config_toml_path, toml_config)
-                    .await
-                    .unwrap();
-            };
-            Ok(network)
-        }
-        Err(e) => Err(e.to_string()),
-    }
+    Ok(network_config)
 }
 
-// TODO: enable for multiple paras
-// fn add_para(config: NetworkConfigBuilder<WithRelaychain>, para: ChainArtifact) -> NetworkConfigBuilder<WithRelaychain> {
-//     let c = config.with_parachain(|p| {
-//         p.with_id(1000)
-//         .with_chain(para.chain.as_str())
-//         .with_default_command(para.cmd.as_str())
-//         .with_chain_spec_path(PathBuf::from(para.spec_path.as_str()))
-//         .with_default_db_snapshot(PathBuf::from(para.snap_path.as_str()))
-//         .with_collator(|c| c.with_name("col-1000"))
-//     });
-// }
+/// Spawn will always use
+pub async fn spawn(
+    step: Step,
+    base_path: &Path,
+    maybe_custom_src_dir: Option<PathBuf>,
+    _maybe_custom_dst_dir: Option<PathBuf>,
+) -> Result<Network<LocalFileSystem>, String> {
+    // spawn the network
+    let filesystem = LocalFileSystem;
+    let provider = NativeProvider::new(filesystem.clone());
+    let orchestrator = Orchestrator::new(filesystem, provider);
 
-async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), String> {
+    // by default spawn will always look at `bite` directory to spawn the new network
+    // but this could be overriden with maybe_custom_src_dir
+    let config_dir = if let Some(custom_dir) = maybe_custom_src_dir {
+        custom_dir
+    } else {
+        PathBuf::from_str(&format!(
+            "{}/{}",
+            base_path.to_string_lossy(),
+            step.dir_from()
+        ))
+        .expect("base_path should be valid")
+    };
+
+    let config_file = format!("{}/config.toml", config_dir.to_string_lossy());
+    info!("spawning from {config_file}");
+
+    // ensure base_dir is correct in settings
+    let base_dir = format!("{}/{}", base_path.to_string_lossy(), step.dir());
+    let global_settings = zombienet_configuration::GlobalSettingsBuilder::new()
+        .with_base_dir(&base_dir)
+        .build()
+        .expect("global settings should work");
+
+    let network_config = zombienet_configuration::NetworkConfig::load_from_toml_with_settings(
+        &config_file,
+        &global_settings,
+    )
+    .unwrap();
+    orchestrator
+        .spawn(network_config)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), anyhow::Error> {
     info!("\n📝 Generating snapshot file {snap_path} with data_path {data_path}...");
 
     let compressed_file = File::create(snap_path).unwrap();
@@ -743,25 +790,27 @@ mod test {
     #[ignore = "Internal test, require some artifacts"]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_spawn() {
-        let filesystem = LocalFileSystem;
-        let provider = NativeProvider::new(filesystem.clone());
-        let r = ChainArtifact {
-            cmd: "polkadot".into(),
-            chain: "polkadot".into(),
-            spec_path: "/tmp/zombie-bite_1730630215147/polkadot-spec.json".into(),
-            snap_path: "/tmp/zombie-bite_1730630215147/polkadot-snap.tgz".into(),
-            override_wasm: None,
-        };
+        // let filesystem = LocalFileSystem;
+        // let provider = NativeProvider::new(filesystem.clone());
+        // let r = ChainArtifact {
+        //     cmd: "polkadot".into(),
+        //     chain: "polkadot".into(),
+        //     spec_path: "/tmp/zombie-bite_1730630215147/polkadot-spec.json".into(),
+        //     snap_path: "/tmp/zombie-bite_1730630215147/polkadot-snap.tgz".into(),
+        //     override_wasm: None,
+        // };
 
-        let p = ChainArtifact {
-            cmd: "polkadot-parachain".into(),
-            chain: "asset-hub-polkadot".into(),
-            spec_path: "/tmp/zombie-bite_1730630215147/asset-hub-polkadot-spec.json".into(),
-            snap_path: "/tmp/zombie-bite_1730630215147/asset-hub-polkadot-snap.tgz".into(),
-            override_wasm: None,
-        };
+        // let p = ChainArtifact {
+        //     cmd: "polkadot-parachain".into(),
+        //     chain: "asset-hub-polkadot".into(),
+        //     spec_path: "/tmp/zombie-bite_1730630215147/asset-hub-polkadot-spec.json".into(),
+        //     snap_path: "/tmp/zombie-bite_1730630215147/asset-hub-polkadot-snap.tgz".into(),
+        //     override_wasm: None,
+        // };
 
-        let n = spawn(provider, r, vec![p], None).await.unwrap();
+        let n = spawn(Step::Spawn, &PathBuf::new(), None, None)
+            .await
+            .unwrap();
         println!("{:?}", n);
         loop {}
     }
