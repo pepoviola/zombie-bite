@@ -1,73 +1,108 @@
-use crate::config::{BiteMethod, Parachain, Relaychain};
+use std::env;
+use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+use clap::{Parser, Subcommand};
+use std::str::FromStr;
 
-pub fn parse(args: Vec<String>) -> (Relaychain, Vec<Parachain>, BiteMethod) {
-    println!("{:?}", args);
-    let Some(relay) = args.get(1) else {
-        panic!("Relaychain argument must be present... [polkadot | kusama | westend | paseo]");
-    };
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+pub struct Args {
+    #[command(subcommand)]
+    pub cmd: Commands,
+}
 
-    // print version with --version
-    if relay == "--version" {
-        println!("zombie-bite v{}", VERSION);
-        std::process::exit(0);
-    }
+#[derive(Subcommand, Debug, Clone)]
+pub enum Commands {
+    /// Bite the running network using 'doppelganger' binaries, and generate the artifacts for spawning.
+    Bite {
+        /// The network will be using for bite (will try the network + ah)
+        #[arg(short = 'r', long = "rc", value_parser = clap::builder::PossibleValuesParser::new(["polkadot", "kusame", "paseo"]), default_value="polkadot")]
+        relay: String,
+        /// If provided we will override the runtime as part of the process of 'bite'
+        /// The resulting network will be running with this runtime.
+        #[arg(long = "rc-override", verbatim_doc_comment)]
+        relay_runtime: Option<String>,
+        /// If provided we will override the runtime as part of the process of 'bite'
+        /// The resulting version of AH will be running with this runtime.
+        #[arg(long = "ah-override", verbatim_doc_comment)]
+        ah_runtime: Option<String>,
+        /// Base path to use. if not provided we will check the env 'ZOMBIE_BITE_BASE_PATH' and if not present we will use `<cwd>_timestamp`
+        #[arg(long, short = 'd', verbatim_doc_comment)]
+        base_path: Option<String>,
+        /// sync url to use when we bite the parachain.
+        #[arg(long = "rc-sync-url", verbatim_doc_comment)]
+        rc_sync_url: Option<String>,
+        /// Automatically spawn the 'bited' network
+        #[arg(long, short = 'm', default_value_t = false, verbatim_doc_comment)]
+        and_spawn: bool,
+    },
+    /// Spawn a new instance of the network from the bite step.
+    Spawn {
+        /// Base path where the 'bite' artifacts lives, we should use this base_path
+        /// to find those artifacts and 'spawn' the network.
+        /// if not provided we will check the env 'ZOMBIE_BITE_BASE_PATH' and if not present we will use `<cwd>_timestamp`
+        #[arg(long, short = 'd', verbatim_doc_comment)]
+        base_path: Option<String>,
+        /// Monit the progress of the chains, and restart the nodes if the block prodution stall
+        #[arg(long, short = 'm', default_value_t = true, verbatim_doc_comment)]
+        with_monitor: bool,
+        /// The network will be using for bite (will try the network + ah)
+        #[arg(short = 's', value_parser = clap::builder::PossibleValuesParser::new(["spawn", "post"]), default_value="spawn")]
+        step: String,
+    },
+    /// [Helper] Generate artifacts to be used by the next step (only 'spawn' and 'post' allowed)
+    GenerateArtifacts {
+        /// The network will be using for bite (will try the network + ah)
+        #[arg(short = 'r', long = "rc", value_parser = clap::builder::PossibleValuesParser::new(["polkadot", "kusame", "paseo"]), default_value="polkadot")]
+        relay: String,
+        /// Base path to use. if not provided we will check the env 'ZOMBIE_BITE_BASE_PATH' and if not present we will use `<cwd>_timestamp`
+        #[arg(long, short = 'd', verbatim_doc_comment)]
+        base_path: Option<String>,
+        /// The network will be using for bite (will try the network + ah)
+        #[arg(short = 's', value_parser = clap::builder::PossibleValuesParser::new(["spawn", "post"]), default_value="spawn")]
+        step: String,
+    },
+    /// [Helper] Clean up directory to only include the needed artifacts
+    CleanUpDir {
+        /// The network will be using for bite (will try the network + ah)
+        #[arg(short = 'r', long = "rc", value_parser = clap::builder::PossibleValuesParser::new(["polkadot", "kusame", "paseo"]), default_value="polkadot")]
+        relay: String,
+        /// Base path to use. if not provided we will check the env 'ZOMBIE_BITE_BASE_PATH' and if not present we will use `<cwd>_timestamp`
+        #[arg(long, short = 'd', verbatim_doc_comment)]
+        base_path: Option<String>,
+        /// The network will be using for bite (will try the network + ah)
+        #[arg(short = 's', value_parser = clap::builder::PossibleValuesParser::new(["bite", "spawn", "post"]), default_value="bite")]
+        step: String,
+    },
+}
 
-    // TODO: move to clap
-    let parts: Vec<&str> = relay.split(':').collect();
-    let relaychain = parts.first().expect("relaychain should be valid");
-    let wasm_overrides = parts.get(1).map(|path| path.to_string());
+/// base_path can be set from env with 'ZOMBIE_BITE_BASE_PATH'
+/// or using the cli argument (take precedence).
+/// And if not set we fallback to defaul `cwd_timestamp`
 
-    let relay_chain = match *relaychain {
-        "polkadot" => Relaychain::Polkadot(wasm_overrides),
-        "kusama" => Relaychain::Kusama(wasm_overrides),
-        "westend" => Relaychain::Westend(wasm_overrides),
-        "paseo" => Relaychain::Paseo(wasm_overrides),
-        _ => {
-            let msg =
-                format!("Invalid network, should be one of 'polkadot, kusama', you pass: {relay}");
-            panic!("{msg}");
-        }
-    };
-
-    let mut bite_method = BiteMethod::DoppelGanger;
-
-    // TODO: support multiple paras
-    let paras_to: Vec<Parachain> = if let Some(paras_to_fork) = args.get(2) {
-        // Allow to not use any para
-        if paras_to_fork == "fork-off" || paras_to_fork == "doppelganger" {
-            bite_method = paras_to_fork.into();
-            vec![]
+pub fn get_base_path(cli_base_path: Option<String>) -> PathBuf {
+    let global_base_path = if let Some(base_path) = cli_base_path {
+        PathBuf::from_str(&base_path).expect("Base path in cli args should be valid")
+    } else {
+        if let Ok(base_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
+            PathBuf::from_str(&base_path)
+                .expect("Base path in env 'ZOMBIE_BITE_BASE_PATH' should be valid")
         } else {
-            let mut paras_to = vec![];
-            for para in paras_to_fork.trim().split(',') {
-                let parts: Vec<&str> = para.split(':').collect();
-                let parachain = parts.first().expect("chain should be valid");
-                let wasm_overrides = parts.get(1).map(|path| path.to_string());
-
-                match *parachain {
-                    "asset-hub" => paras_to.push(Parachain::AssetHub(wasm_overrides)),
-                    //"coretime" => paras_to.push(Parachain::Coretime),
-                    // "people" => paras_to.push(Parachain::People),
-                    _ => {
-                        println!("Invalid para {para}, skipping...");
-                    }
-                }
-            }
-            paras_to
+            // fallback
+            let path = env::current_dir().expect("cwd should be valid");
+            let now = SystemTime::now();
+            let duration_since_epoch = now
+                .duration_since(UNIX_EPOCH)
+                .expect("Epoch ts show be valid");
+            let fallback = format!(
+                "{}_{}",
+                path.to_string_lossy(),
+                duration_since_epoch.as_secs()
+            );
+            PathBuf::from_str(&fallback).expect("Base path form fallback should be valid")
         }
-    } else {
-        vec![]
     };
 
-    println!("rc: {:?}, paras: {:?}", relay_chain, paras_to);
-
-    let bite_method = if let Some(method) = args.get(3) {
-        method.into()
-    } else {
-        bite_method
-    };
-
-    (relay_chain, paras_to, bite_method)
+    global_base_path
 }
