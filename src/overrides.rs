@@ -210,7 +210,7 @@ mod test {
         let paras = vec![];
         let _path = generate_default_overrides_for_rc(
             "/tmp",
-            &crate::config::Relaychain::Polkadot(None),
+            &crate::config::Relaychain::new("polakdot"),
             &paras,
         )
         .await;
