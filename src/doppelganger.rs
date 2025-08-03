@@ -421,11 +421,13 @@ pub async fn clean_up_dir_for_step(
     fs::rename(&step_path, &debug_path)
         .await
         .expect("rename dir should works");
+    info!("renamed dir from {step_path} to {debug_path}");
 
     // create the step dir again
     fs::create_dir_all(&step_path)
         .await
         .expect("Create step dir should works");
+    info!("created dir {step_path}");
 
     // copy needed files
     let ah_spec = format!("asset-hub-{}-spec.json", rc.as_chain_string());
@@ -451,7 +453,7 @@ pub async fn clean_up_dir_for_step(
         info!("mv {from} {to}");
         fs::rename(&from, &to)
             .await
-            .expect("copy file to bite should works");
+            .expect(&format!("copy from {from} to {to} should works"));
     }
 
     Ok(())
