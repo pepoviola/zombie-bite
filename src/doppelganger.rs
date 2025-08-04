@@ -429,6 +429,22 @@ pub async fn clean_up_dir_for_step(
         .expect("Create step dir should works");
     info!("created dir {step_path}");
 
+    // print dir content
+
+    let output = tokio::process::Command::new("ls")
+        .arg("-l")
+        .arg(&debug_path)
+        .output().await.unwrap();
+
+    info!("ls debug_path: {:?}", output);
+
+    let output = tokio::process::Command::new("ls")
+        .arg("-l")
+        .arg(&step_path)
+        .output().await.unwrap();
+
+    info!("ls step_path: {:?}", output);
+
     // copy needed files
     let ah_spec = format!("asset-hub-{}-spec.json", rc.as_chain_string());
     let ah_snap = format!("asset-hub-{}-snap.tgz", rc.as_chain_string());
