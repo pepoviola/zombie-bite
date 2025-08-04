@@ -410,6 +410,8 @@ pub async fn clean_up_dir_for_step(
     // clean bite directory to leave only the needed artifacts
     let debug_path = format!("{global_base_dir_str}/{}", step.dir_debug());
 
+    let step_path = format!("{global_base_dir_str}/{}", step.dir());
+
     // if we already have a debug path, remove it
     if let Ok(true) = fs::try_exists(&debug_path).await {
         fs::remove_dir_all(&debug_path)
@@ -417,7 +419,13 @@ pub async fn clean_up_dir_for_step(
             .expect("remove debug dir should works");
     }
 
-    let step_path = format!("{global_base_dir_str}/{}", step.dir());
+    let output = tokio::process::Command::new("ls")
+        .arg("-l")
+        .arg(&step_path)
+        .output().await.unwrap();
+
+    info!("ls step_path (before): {:#?}", output);
+
     fs::rename(&step_path, &debug_path)
         .await
         .expect("rename dir should works");
@@ -436,14 +444,14 @@ pub async fn clean_up_dir_for_step(
         .arg(&debug_path)
         .output().await.unwrap();
 
-    info!("ls debug_path: {:?}", output);
+    info!("ls debug_path: {:#?}", output);
 
     let output = tokio::process::Command::new("ls")
         .arg("-l")
         .arg(&step_path)
         .output().await.unwrap();
 
-    info!("ls step_path: {:?}", output);
+    info!("ls step_path: {:#?}", output);
 
     // copy needed files
     let ah_spec = format!("asset-hub-{}-spec.json", rc.as_chain_string());
