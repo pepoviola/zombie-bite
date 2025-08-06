@@ -113,7 +113,8 @@ pub async fn sync_para(
     env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
 
     println!("env: {env:?}");
-    let dest_for_paseo = format!("{}/paseo-asset-hub.json", ns.base_dir().to_string_lossy(),);
+
+    let dest_for_paseo = format!("{}/asset-hub-paseo.json", ns.base_dir().to_string_lossy(),);
     let chain_arg = if chain.as_ref() == "asset-hub-paseo" {
         // get chain spec from https://paseo-r2.zondax.ch/chain-specs/paseo-asset-hub.json
         let response = reqwest::get(PASEO_ASSET_HUB_SPEC_URL)
