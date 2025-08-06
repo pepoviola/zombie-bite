@@ -6747,7 +6747,7 @@ dependencies = [
 
 [[package]]
 name = "zombie-bite"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "array-bytes",
