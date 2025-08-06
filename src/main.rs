@@ -99,11 +99,11 @@ async fn tear_down_and_generate(
     network: Network<LocalFileSystem>,
     base_path: PathBuf,
 ) -> Result<(), anyhow::Error> {
-    let removed = fs::remove_file(stop_file).await;
     let rc = Relaychain::new(network.relaychain().chain());
     let _ = network.destroy().await;
+    let teardown_signal = fs::try_exists(&stop_file).await;
 
-    if removed.is_ok() {
+    if teardown_signal.is_ok() {
         // create the artifacts
         doppelganger::generate_artifacts(base_path.clone(), step, &rc)
             .await
@@ -112,6 +112,9 @@ async fn tear_down_and_generate(
             .await
             .expect("clean-up should works");
     }
+
+    // signal that the teardown is completed
+    _ = fs::remove_file(stop_file).await;
 
     Ok(())
 }
