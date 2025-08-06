@@ -120,7 +120,8 @@ pub async fn doppelganger_inner(
     {
         let sync_chain_name = if sync_chain.contains('/') {
             let parts: Vec<&str> = sync_chain.split('/').collect();
-            parts.last().unwrap().to_string()
+            let name_parts: Vec<&str> = parts.last().unwrap().split('.').collect();
+            name_parts.get(0).unwrap().to_string()
         } else {
             // is not a file
             sync_chain.clone()
