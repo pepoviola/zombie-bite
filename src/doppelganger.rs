@@ -434,18 +434,16 @@ pub async fn clean_up_dir_for_step(
     let ah_spec = format!("asset-hub-{}-spec.json", rc.as_chain_string());
     let ah_snap = format!("asset-hub-{}-snap.tgz", rc.as_chain_string());
     let rc_spec = format!("{}-spec.json", rc.as_chain_string());
-    let mut needed_files = vec![
-        "config.toml",
-        ah_spec.as_str(),
-        ah_snap.as_str(),
-        rc_spec.as_str(),
-    ];
+    let rc_snap = format!("{}-snap.tgz", rc.as_chain_string());
+    let alice_snap = format!("alice-{}-snap.tgz", rc.as_chain_string());
+    let bob_snap = format!("bob-{}-snap.tgz", rc.as_chain_string());
+    let mut needed_files = vec!["config.toml", &ah_spec, &ah_snap, &rc_spec];
 
     if step == Step::Bite {
-        needed_files.push("polkadot-snap.tgz");
+        needed_files.push(&rc_snap);
     } else {
-        needed_files.push("alice-polkadot-snap.tgz");
-        needed_files.push("bob-polkadot-snap.tgz");
+        needed_files.push(&alice_snap);
+        needed_files.push(&bob_snap);
     }
 
     for file in needed_files {
