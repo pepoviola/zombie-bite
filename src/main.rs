@@ -103,7 +103,7 @@ async fn tear_down_and_generate(
     let _ = network.destroy().await;
     let teardown_signal = fs::try_exists(&stop_file).await;
 
-    if teardown_signal.is_ok() {
+    if let Ok(true) = teardown_signal {
         // create the artifacts
         doppelganger::generate_artifacts(base_path.clone(), step, &rc)
             .await
