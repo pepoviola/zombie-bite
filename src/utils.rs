@@ -1,17 +1,19 @@
 #![allow(dead_code)]
 // TODO: don't allow dead_code
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 use anyhow::anyhow;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp_core::bytes;
-use tokio::fs::File;
+use tokio::fs::{self, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
+
 /// Parachain id.
 ///
 /// This is an equivalent of the `polkadot_parachain_primitives::Id`, which is a compact-encoded
@@ -131,6 +133,67 @@ pub fn para_id_hash(para_id: u32) -> String {
     array_bytes::bytes2hex("", &para_id_hash)
 }
 
+pub async fn localize_config(config_path: impl AsRef<str>) -> Result<(), anyhow::Error> {
+    let config_path = PathBuf::from_str(config_path.as_ref())?;
+    let base_path = config_path.parent().unwrap();
+
+    let mut localized = false;
+
+    // read config
+    let config_content = fs::read_to_string(&config_path)
+        .await
+        .expect("read config should works");
+    let mut config_modified = vec![];
+    for line in config_content.lines() {
+        match line {
+            l if l.starts_with("default_db_snapshot =")
+                | l.starts_with("chain_spec_path =")
+                | l.starts_with("db_snapshot =") =>
+            {
+                let parts: Vec<&str> = l.split("=").collect();
+                let value_as_path = PathBuf::from_str(parts.last().unwrap())
+                    .expect(&format!("value {:?} should be a valid path", parts.last()));
+                let line = if let Ok(false) = fs::try_exists(&value_as_path).await {
+                    // localize!
+                    localized = true;
+                    format!(
+                        r#"{} = "{}/{}"#,
+                        parts.first().unwrap(),
+                        base_path.to_string_lossy(),
+                        value_as_path.file_name().unwrap().to_string_lossy()
+                    )
+                } else {
+                    l.to_string()
+                };
+
+                config_modified.push(line)
+            }
+            l if l.starts_with("base_dir") => {
+                localized = true;
+                // remove base_path
+            }
+            _ => {
+                config_modified.push(line.to_string());
+            }
+        }
+    }
+
+    if localized {
+        // rename original
+        fs::rename(
+            &config_path,
+            &format!("{}/original-config.toml", &base_path.to_string_lossy()),
+        )
+        .await
+        .expect("rename should works");
+        fs::write(&config_path, config_modified.join("\n"))
+            .await
+            .expect("write should works");
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -139,5 +202,13 @@ mod test {
         let para_id = 1000_u32;
         let head_key = para_head_key(para_id);
         assert_eq!(&head_key, "0xcd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3b6ff6f7d467b87a9e8030000");
+    }
+
+    #[tokio::test]
+    async fn localize_config_should_works() {
+        let config_path = "./testing/config.toml";
+        let config_path_bkp = "./testing/config.toml.bkp";
+        let _ = fs::copy(&config_path_bkp, config_path).await;
+        let _ = localize_config(config_path).await.unwrap();
     }
 }

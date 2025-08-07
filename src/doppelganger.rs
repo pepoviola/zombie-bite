@@ -32,7 +32,7 @@ use zombienet_provider::NativeProvider;
 use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
-use crate::utils::{get_random_port, para_head_key, HeadData};
+use crate::utils::{get_random_port, localize_config, para_head_key, HeadData};
 
 use crate::config::{Context, Parachain, Relaychain, Step};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
@@ -637,7 +637,7 @@ pub async fn spawn(
     base_path: &Path,
     maybe_custom_src_dir: Option<PathBuf>,
     _maybe_custom_dst_dir: Option<PathBuf>,
-) -> Result<Network<LocalFileSystem>, String> {
+) -> Result<Network<LocalFileSystem>, anyhow::Error> {
     // spawn the network
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
@@ -657,6 +657,9 @@ pub async fn spawn(
     };
 
     let config_file = format!("{}/config.toml", config_dir.to_string_lossy());
+
+    // localize if needed (change the content if needed)
+    localize_config(&config_file).await?;
     info!("spawning from {config_file}");
 
     // ensure base_dir is correct in settings
@@ -671,10 +674,11 @@ pub async fn spawn(
         &global_settings,
     )
     .unwrap();
+
     orchestrator
         .spawn(network_config)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| anyhow!(e.to_string()))
 }
 
 async fn generate_snap(data_path: &str, snap_path: &str) -> Result<(), anyhow::Error> {
