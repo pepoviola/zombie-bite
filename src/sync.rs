@@ -59,6 +59,9 @@ pub async fn sync_relay_only(
             "--prometheus-port",
             &metrics_random_port.to_string(),
             "--no-hardware-benchmarks",
+            // needed to not drop the pre-migration state
+            "--state-pruning",
+            "14400", // one day
         ])
         .env(env);
 
@@ -146,6 +149,9 @@ pub async fn sync_para(
             "--relay-chain-rpc-url",
             relaychain_endpoint.as_ref(),
             "--no-hardware-benchmarks",
+            // needed to not drop the pre-migration state
+            "--state-pruning",
+            "14400", // one day
             "--",
             "--chain",
             relaychain.as_ref(),
