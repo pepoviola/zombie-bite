@@ -72,6 +72,8 @@ async fn ensure_startup_producing_blocks(network: &Network<LocalFileSystem>) {
     while let Some(block) = blocks.next().await {
         info!("Block #{}", block.unwrap().header().number);
     }
+
+    info!("🚀🚀🚀 network is up and running...");
 }
 
 async fn post_spawn_loop(

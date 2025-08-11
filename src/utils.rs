@@ -13,6 +13,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
+use tracing::trace;
 
 /// Parachain id.
 ///
@@ -146,27 +147,29 @@ pub async fn localize_config(config_path: impl AsRef<str>) -> Result<(), anyhow:
     let mut config_modified = vec![];
     for line in config_content.lines() {
         match line {
-            l if l.starts_with("default_db_snapshot =")
-                | l.starts_with("chain_spec_path =")
-                | l.starts_with("db_snapshot =") =>
+            l if l.starts_with("default_db_snapshot")
+                | l.starts_with("chain_spec_path")
+                | l.starts_with("db_snapshot") =>
             {
                 let parts: Vec<&str> = l.split("=").collect();
                 let value_as_path = PathBuf::from_str(parts.last().unwrap())
                     .expect(&format!("value {:?} should be a valid path", parts.last()));
-                let line = if let Ok(false) = fs::try_exists(&value_as_path).await {
+                let maybe_mod_line = if let Ok(false) = fs::try_exists(&value_as_path).await {
                     // localize!
                     localized = true;
-                    format!(
+                    let mod_line =format!(
                         r#"{} = "{}/{}"#,
-                        parts.first().unwrap(),
+                        parts.first().unwrap().trim(),
                         base_path.to_string_lossy(),
                         value_as_path.file_name().unwrap().to_string_lossy()
-                    )
+                    );
+                    trace!("localize line from: {l} to {mod_line}");
+                    mod_line
                 } else {
                     l.to_string()
                 };
 
-                config_modified.push(line)
+                config_modified.push(maybe_mod_line)
             }
             l if l.starts_with("base_dir") => {
                 localized = true;
@@ -210,5 +213,18 @@ mod test {
         let config_path_bkp = "./testing/config.toml.bkp";
         let _ = fs::copy(&config_path_bkp, config_path).await;
         let _ = localize_config(config_path).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn localize_pase_config_should_works() {
+        tracing_subscriber::fmt::init();
+        let config_path = "./testing/config-paseo.toml";
+        let config_path_bkp = "./testing/config-paseo.toml.bkp";
+        let _ = fs::copy(&config_path_bkp, config_path).await;
+        let _ = localize_config(config_path).await.unwrap();
+        let network_config = zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
+        let alice_db = network_config.relaychain().nodes().first().unwrap().db_snapshot().unwrap().to_string();
+
+        assert!(alice_db.contains("./testing"));
     }
 }

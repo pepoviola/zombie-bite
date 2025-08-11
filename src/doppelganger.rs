@@ -631,7 +631,7 @@ async fn generate_config(
     Ok(network_config)
 }
 
-/// Spawn will always use
+/// Spawn a new instance of the chain from a base_path and step.
 pub async fn spawn(
     step: Step,
     base_path: &Path,
