@@ -157,7 +157,7 @@ pub async fn localize_config(config_path: impl AsRef<str>) -> Result<(), anyhow:
                 let maybe_mod_line = if let Ok(false) = fs::try_exists(&value_as_path).await {
                     // localize!
                     localized = true;
-                    let mod_line =format!(
+                    let mod_line = format!(
                         r#"{} = "{}/{}"#,
                         parts.first().unwrap().trim(),
                         base_path.to_string_lossy(),
@@ -222,8 +222,16 @@ mod test {
         let config_path_bkp = "./testing/config-paseo.toml.bkp";
         let _ = fs::copy(&config_path_bkp, config_path).await;
         let _ = localize_config(config_path).await.unwrap();
-        let network_config = zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
-        let alice_db = network_config.relaychain().nodes().first().unwrap().db_snapshot().unwrap().to_string();
+        let network_config =
+            zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
+        let alice_db = network_config
+            .relaychain()
+            .nodes()
+            .first()
+            .unwrap()
+            .db_snapshot()
+            .unwrap()
+            .to_string();
 
         assert!(alice_db.contains("./testing"));
     }

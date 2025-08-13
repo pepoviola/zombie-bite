@@ -7,10 +7,11 @@ use std::{
     time::Duration,
 };
 
+use crate::config::STATE_PRUNING;
 use crate::utils::get_random_port;
 
 use reqwest::Url;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 use zombienet_orchestrator::metrics::{Metrics, MetricsHelper};
 use zombienet_provider::{types::SpawnNodeOptions, DynNamespace, DynNode};
 use zombienet_support::net::wait_ws_ready;
@@ -47,6 +48,8 @@ pub async fn sync_relay_only(
         env.push(("ZOMBIE_RC_EPOCH_DURATION".into(), "600".into()));
     }
 
+    trace!("env: {env:?}");
+
     let metrics_random_port = get_random_port().await;
     let opts = SpawnNodeOptions::new("sync-node", cmd.as_ref())
         .args(vec![
@@ -61,16 +64,16 @@ pub async fn sync_relay_only(
             "--no-hardware-benchmarks",
             // needed to not drop the pre-migration state
             "--state-pruning",
-            "14400", // one day
+            STATE_PRUNING, // one day
         ])
         .env(env);
 
-    debug!("{:?}", opts);
+    info!("🔎 sync node opts: {:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
     debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    info!("sync node logs: {}", sync_node.log_cmd());
+    info!("📓 sync node logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
@@ -115,7 +118,7 @@ pub async fn sync_para(
     env.push(("RUST_LOG", "doppelganger=debug"));
     env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
 
-    println!("env: {env:?}");
+    trace!("env: {env:?}");
 
     let dest_for_paseo = format!("{}/asset-hub-paseo.json", ns.base_dir().to_string_lossy(),);
     let chain_arg = if chain.as_ref() == "asset-hub-paseo" {
@@ -151,19 +154,19 @@ pub async fn sync_para(
             "--no-hardware-benchmarks",
             // needed to not drop the pre-migration state
             "--state-pruning",
-            "14400", // one day
+            STATE_PRUNING, // one day
             "--",
             "--chain",
             relaychain.as_ref(),
         ])
         .env(env);
 
-    debug!("{:?}", opts);
+    info!("🔎 sync para opts: {:?}", opts);
     let sync_node = ns.spawn_node(&opts).await.unwrap();
     let metrics_url = format!("http://127.0.0.1:{metrics_random_port}/metrics");
 
     debug!("prometheus link http://127.0.0.1:{metrics_random_port}/metrics");
-    info!("sync para logs: {}", sync_node.log_cmd());
+    info!("📓 sync para logs: {}", sync_node.log_cmd());
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();

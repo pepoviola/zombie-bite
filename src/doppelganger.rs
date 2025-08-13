@@ -34,7 +34,7 @@ use zombienet_support::fs::local::LocalFileSystem;
 
 use crate::utils::{get_random_port, localize_config, para_head_key, HeadData};
 
-use crate::config::{Context, Parachain, Relaychain, Step};
+use crate::config::{Context, Parachain, Relaychain, Step, STATE_PRUNING};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use crate::sync::{sync_para, sync_relay_only};
 
@@ -66,13 +66,6 @@ pub async fn doppelganger_inner(
 
     let filesystem = LocalFileSystem;
     let provider = NativeProvider::new(filesystem.clone());
-    // let epoch_ms = get_epoch_ms();
-
-    // let global_base_dir = if let Ok(fixed_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
-    //     PathBuf::from_str(&fixed_path).unwrap()
-    // } else {
-    //     PathBuf::from_str(format!("/tmp/zombie-bite_{epoch_ms}").as_str()).unwrap()
-    // };
 
     // ensure the base path exist
     fs::create_dir_all(&global_base_dir).await.unwrap();
@@ -139,19 +132,8 @@ pub async fn doppelganger_inner(
 
         // generate the data.tgz to use as snapshot
         let snap_path = format!("{}/{}-snap.tgz", &base_dir_str, &sync_chain_name);
-        println!("s: {snap_path}");
+        trace!("snap_path: {snap_path}");
         generate_snap(&sync_db_path, &snap_path).await.unwrap();
-
-        // // real last log line to get the para_head
-        // let logs = sync_node
-        //     .logs()
-        //     .await
-        //     .expect("read logs from node should work");
-        // let para_head_str = logs
-        //     .lines()
-        //     .last()
-        //     .expect("last line should be valid.")
-        //     .to_string();
 
         let para_head_str = read_to_string(&sync_head_path).expect(&format!(
             "read para_head ({sync_head_path}) file should works."
@@ -524,6 +506,7 @@ async fn generate_config(
                 "--discover-local".into(),
                 "--allow-private-ip".into(),
                 "--no-hardware-benchmarks".into(),
+                ("--state-pruning", STATE_PRUNING).into(),
             ]);
 
         // We override the code directly in the db
@@ -612,6 +595,7 @@ async fn generate_config(
                             "--discover-local".into(),
                             "--allow-private-ip".into(),
                             "--no-hardware-benchmarks".into(),
+                            ("--state-pruning", STATE_PRUNING).into(),
                         ])
                 })
             })
