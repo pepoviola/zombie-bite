@@ -9,6 +9,9 @@ const SPAWN: &str = "spawn";
 const POST: &str = "post";
 const DEBUG: &str = "debug";
 
+// One day
+pub const STATE_PRUNING: &str = "14400";
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Step {
     /// Initial step
