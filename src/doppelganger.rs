@@ -487,7 +487,18 @@ async fn generate_config(
         )
     };
 
-    let rpc_port: u16 = if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
+    // backward compatibility
+    let rpc_alice_port: u16 = if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
+        port.parse()
+            .expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16")
+    } else if let Ok(port) = env::var("ZOMBIE_BITE_ALICE_PORT") {
+        port.parse()
+            .expect("env var ZOMBIE_BITE_ALICE_PORT must be a valid u16")
+    } else {
+        get_random_port().await
+    };
+
+    let rpc_bob_port: u16 = if let Ok(port) = env::var("ZOMBIE_BITE_BOB_PORT") {
         port.parse()
             .expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16")
     } else {
@@ -517,10 +528,8 @@ async fn generate_config(
         // };
 
         relay_builder
-            .with_node(|node| node.with_name("alice").with_rpc_port(rpc_port))
-            .with_node(|node| node.with_name("bob"))
-        // .with_node(|node| node.with_name("charlie"))
-        // .with_node(|node| node.with_name("dave"))
+            .with_node(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
+            .with_node(|node| node.with_name("bob").with_rpc_port(rpc_bob_port))
     });
     if !paras.is_empty() {
         // TODO: enable for multiple paras
@@ -587,7 +596,7 @@ async fn generate_config(
                         .with_args(vec![
                             (
                                 "--relay-chain-rpc-urls",
-                                format!("ws://127.0.0.1:{rpc_port}").as_str(),
+                                format!("ws://127.0.0.1:{rpc_alice_port}").as_str(),
                             )
                                 .into(),
                             ("-l", para_leaked_rust_log.as_str()).into(),

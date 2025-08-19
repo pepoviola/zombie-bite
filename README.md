@@ -164,3 +164,16 @@ _but_ you can override those by setting the `RUST_LOG_COL` env, since the script
 Zombie-bite create a json file including two maps (`overrides` and `injects`), these two are simple key/values json that zombie-bite pass to the _doppelganger nodes_ to override/inject those keys in the _block import_ process. Those _nodes_ `override` the key IFF the key exist in the _state being imported_ and `inject` the ones sets at the end of the import process, so will be present in the resulting state even if there wasen't there originally.
 
 You can check the keys we override/inject by default (for both [relaychain](https://github.com/pepoviola/zombie-bite/blob/main/src/overrides.rs#L8) / [parachain](https://github.com/pepoviola/zombie-bite/blob/main/src/overrides.rs#L136)) and at the moment if you want to include other key (or customize one) yo need to modify this [file](https://github.com/pepoviola/zombie-bite/blob/main/src/overrides.rs) and rebuild the tool. _Note_: a process to dynamically set the overrides/injects map is planned.
+
+##### Environment variables:
+
+Zombie-bite _reads_ a few __env vars__ to allow users to customize th behavior:
+
+- ZOMBIE_BITE_BASE_PATH: base_path to use.
+- RUST_LOG_RC: log level to set in the relaychain nodes.
+- RUST_LOG_COL: log level to set in the collator.
+- ZOMBIE_BITE_RC_PORT: port to use for `alice`. (__deprecated__)
+- ZOMBIE_BITE_ALICE_PORT: port to use for `alice`.
+- ZOMBIE_BITE_BOB_PORT: port to use for `bob`.
+- ZOMBIE_BITE_AH_PORT: port to use for the collator.
+- ZOMBIE_SUDO: sudo key to set in sudo pallet (IFF present) and in RC manager.
