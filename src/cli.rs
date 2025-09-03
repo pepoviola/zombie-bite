@@ -17,7 +17,7 @@ pub enum Commands {
     /// Bite the running network using 'doppelganger' binaries, and generate the artifacts for spawning.
     Bite {
         /// The network will be using for bite (will try the network + ah)
-        #[arg(short = 'r', long = "rc", value_parser = clap::builder::PossibleValuesParser::new(["polkadot", "kusame", "paseo"]), default_value="polkadot")]
+        #[arg(short = 'r', long = "rc", value_parser = clap::builder::PossibleValuesParser::new(["polkadot", "kusama", "paseo"]), default_value="polkadot")]
         relay: String,
         /// If provided we will override the runtime as part of the process of 'bite'
         /// The resulting network will be running with this runtime.
