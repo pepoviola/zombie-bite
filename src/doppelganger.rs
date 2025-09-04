@@ -203,7 +203,8 @@ pub async fn doppelganger_inner(
     .unwrap();
 
     // remove `parachains` db
-    let parachains_path = format!("{sync_db_path}/chains/{sync_chain}/db/full/parachains");
+    let sync_chain_in_path = if sync_chain == "kusama" { "ksmcc3" } else { sync_chain.as_str() };
+    let parachains_path = format!("{sync_db_path}/chains/{sync_chain_in_path}/db/full/parachains");
     debug!("Deleting `parachains` db at {parachains_path}");
     tokio::fs::remove_dir_all(parachains_path)
         .await
