@@ -44,7 +44,7 @@ pub async fn sync_relay_only(
     env.push(("ZOMBIE_RC_OVERRIDES_PATH".to_string(), rc_overrides_path));
     env.push(("RUST_LOG".into(), "doppelganger=debug".into()));
     env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
-    if chain.as_ref() == "paseo" {
+    if chain.as_ref() == "paseo" || chain.as_ref() == "kusama" {
         env.push(("ZOMBIE_RC_EPOCH_DURATION".into(), "600".into()));
     }
 
