@@ -4,7 +4,7 @@ use tokio::fs;
 use tracing::{debug, trace, warn};
 use zombienet_sdk::NetworkNode;
 
-const CHECK_TIMEOUT_SECS: u64 = 900; // 15 mins
+const CHECK_TIMEOUT_SECS: u64 = 600; // 10 mins
 
 async fn restart(node: &NetworkNode, checkpoint: impl Into<f64>) {
     if (node.restart(None).await).is_ok() {
