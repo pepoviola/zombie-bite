@@ -38,7 +38,7 @@ pub async fn generate_default_overrides_for_rc(
         // Grandpa Authorities (alice, bob)
         "5f9cc45b7a00c5899361e1c6099678dc5e0621c4869aa60c02be9adcc98a0d1d": "0888dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee0100000000000000d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae690100000000000000",
         // Staking ForceEra (ForceNone)
-        // "5f3e4907f716ac89b6347d15ececedcaf7dad0317324aecae8744b87fc95f2f3": "02",
+        "5f3e4907f716ac89b6347d15ececedcaf7dad0317324aecae8744b87fc95f2f3": "02",
         // Staking Invulnerables (alice, bob)
         "5f3e4907f716ac89b6347d15ececedca5579297f4dfb9609e7e4c2ebab9ce40a": "08be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25ffe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e",
         // paras parachains (only 1000)
