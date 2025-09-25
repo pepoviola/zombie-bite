@@ -146,20 +146,21 @@ pub async fn generate_default_overrides_for_para(
     para: &Parachain,
     relay: &Relaychain,
 ) -> PathBuf {
+    // asset-hub-polkadot use ed key
+    let key_to_use = if relay.as_chain_string() == "polkadot" {
+        "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116"
+    } else {
+        "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15"
+    };
+
     // Keys to inject (mostly storage maps that are not present in the current state)
     let injects = json!({
         // Session Nextkeys for `collator`
-        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": key_to_use,
         // Session KeyOwner
         "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
     });
-
-    // asset-hub-polkadot use ed key for aura
-    let aura_key = if relay.as_chain_string() == "polkadot" {
-        "04eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116"
-    } else {
-        "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15"
-    };
 
     // <Pallet> <Item>
     // e.g Validator Validators
@@ -167,13 +168,13 @@ pub async fn generate_default_overrides_for_para(
         // Session Validators
         "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         //	Session QueuedKeys
-        "cec5070d609dd3497f72bde07fc96ba0e0cdd062e6eaf24295ad4ccfc41d4609": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        "cec5070d609dd3497f72bde07fc96ba0e0cdd062e6eaf24295ad4ccfc41d4609": &format!("04{key_to_use}{key_to_use}"),
         // CollatorSelection Invulnerables (collator)
         "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
         // Aura authorities
-        "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": aura_key,
+        "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": &format!("04{key_to_use}"),
         // AuraExt authorities
-        "3c311d57d4daf52904616cf69648081e5e0621c4869aa60c02be9adcc98a0d1d": aura_key,
+        "3c311d57d4daf52904616cf69648081e5e0621c4869aa60c02be9adcc98a0d1d": &format!("04{key_to_use}"),
         // parachainSystem lastDmqMqcHead (emtpy)
         "45323df7cc47150b3930e2666b0aa313911a5dd3f1155f5b7d0c5aa102a757f9": "0000000000000000000000000000000000000000000000000000000000000000",
         // CollatorSelection DesiredCandidates (set to 1)
