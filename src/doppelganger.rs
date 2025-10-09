@@ -34,7 +34,7 @@ use zombienet_support::fs::local::LocalFileSystem;
 
 use crate::utils::{get_random_port, localize_config, para_head_key, HeadData};
 
-use crate::config::{Context, Parachain, Relaychain, Step, STATE_PRUNING};
+use crate::config::{Context, Parachain, Relaychain, Step, get_state_pruning_config};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
 use crate::sync::{sync_para, sync_relay_only};
 
@@ -518,7 +518,7 @@ async fn generate_config(
                 "--discover-local".into(),
                 "--allow-private-ip".into(),
                 "--no-hardware-benchmarks".into(),
-                ("--state-pruning", STATE_PRUNING).into(),
+                ("--state-pruning", get_state_pruning_config().as_str()).into(),
             ]);
 
         // We override the code directly in the db
@@ -605,7 +605,7 @@ async fn generate_config(
                             "--discover-local".into(),
                             "--allow-private-ip".into(),
                             "--no-hardware-benchmarks".into(),
-                            ("--state-pruning", STATE_PRUNING).into(),
+                            ("--state-pruning", get_state_pruning_config().as_str()).into(),
                         ])
                 })
             })

@@ -9,8 +9,11 @@ const SPAWN: &str = "spawn";
 const POST: &str = "post";
 const DEBUG: &str = "debug";
 
-// One day
-pub const STATE_PRUNING: &str = "14400";
+// `--state-pruning` config flag (two days +1 by default)
+pub const STATE_PRUNING: &str = "28801";
+pub fn get_state_pruning_config() -> String {
+    env::var("ZOMBIE_BITE_STATE_PRUNING").unwrap_or_else(|_|STATE_PRUNING.to_string())
+}
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Step {
@@ -207,6 +210,7 @@ impl Relaychain {
     pub fn epoch_duration(&self) -> u64 {
         match self {
             Relaychain::Paseo { .. } => 600,
+            Relaychain::Kusama { .. } => 600,
             _ => 2400,
         }
     }
@@ -367,10 +371,10 @@ mod test {
     #[test]
     fn config_with_para_ok() {
         let config =
-            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::Coretime(None)])
+            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::AssetHub(None)])
                 .unwrap();
         let parachain = config.parachains().first().unwrap().chain().unwrap();
-        assert_eq!(parachain.as_str(), "coretime-kusama-local");
+        assert_eq!(parachain.as_str(), "asset-hub-kusama-local");
     }
 
     #[tokio::test]
