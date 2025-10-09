@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use crate::config::STATE_PRUNING;
+use crate::config::get_state_pruning_config;
 use crate::utils::get_random_port;
 
 use reqwest::Url;
@@ -64,7 +64,7 @@ pub async fn sync_relay_only(
             "--no-hardware-benchmarks",
             // needed to not drop the pre-migration state
             "--state-pruning",
-            STATE_PRUNING, // one day
+            get_state_pruning_config().as_str(),
         ])
         .env(env);
 
@@ -154,7 +154,7 @@ pub async fn sync_para(
             "--no-hardware-benchmarks",
             // needed to not drop the pre-migration state
             "--state-pruning",
-            STATE_PRUNING, // one day
+            get_state_pruning_config().as_str(),
             "--",
             "--chain",
             relaychain.as_ref(),

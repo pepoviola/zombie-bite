@@ -177,3 +177,4 @@ Zombie-bite _reads_ a few __env vars__ to allow users to customize th behavior:
 - ZOMBIE_BITE_BOB_PORT: port to use for `bob`.
 - ZOMBIE_BITE_AH_PORT: port to use for the collator.
 - ZOMBIE_SUDO: sudo key to set in sudo pallet (IFF present) and in RC manager.
+- ZOMBIE_BITE_STATE_PRUNING: set the value of the flag `--state-pruning` (default value 28801)
