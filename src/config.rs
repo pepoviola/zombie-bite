@@ -12,7 +12,7 @@ const DEBUG: &str = "debug";
 // `--state-pruning` config flag (two days +1 by default)
 pub const STATE_PRUNING: &str = "28801";
 pub fn get_state_pruning_config() -> String {
-    env::var("ZOMBIE_BITE_STATE_PRUNING").unwrap_or_else(|_|STATE_PRUNING.to_string())
+    env::var("ZOMBIE_BITE_STATE_PRUNING").unwrap_or_else(|_| STATE_PRUNING.to_string())
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

@@ -156,9 +156,11 @@ pub async fn generate_default_overrides_for_para(
     // Keys to inject (mostly storage maps that are not present in the current state)
     let injects = json!({
         // Session Nextkeys for `collator`
-        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": key_to_use,
+        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+
         // Session KeyOwner
-        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
         "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
     });
 
@@ -166,11 +168,11 @@ pub async fn generate_default_overrides_for_para(
     // e.g Validator Validators
     let mut overrides = json!({
         // Session Validators
-        "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+        "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": &format!("04{key_to_use}{key_to_use}"),
         //	Session QueuedKeys
         "cec5070d609dd3497f72bde07fc96ba0e0cdd062e6eaf24295ad4ccfc41d4609": &format!("04{key_to_use}{key_to_use}"),
         // CollatorSelection Invulnerables (collator)
-        "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": "04005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+        "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": &format!("04{key_to_use}{key_to_use}"),
         // Aura authorities
         "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": &format!("04{key_to_use}"),
         // AuraExt authorities
