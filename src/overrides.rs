@@ -168,11 +168,11 @@ pub async fn generate_default_overrides_for_para(
     // e.g Validator Validators
     let mut overrides = json!({
         // Session Validators
-        "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": &format!("04{key_to_use}{key_to_use}"),
+        "cec5070d609dd3497f72bde07fc96ba088dcde934c658227ee1dfafcd6e16903": &format!("04{key_to_use}"),
         //	Session QueuedKeys
         "cec5070d609dd3497f72bde07fc96ba0e0cdd062e6eaf24295ad4ccfc41d4609": &format!("04{key_to_use}{key_to_use}"),
         // CollatorSelection Invulnerables (collator)
-        "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": &format!("04{key_to_use}{key_to_use}"),
+        "15464cac3378d46f113cd5b7a4d71c845579297f4dfb9609e7e4c2ebab9ce40a": &format!("04{key_to_use}"),
         // Aura authorities
         "57f8dc2f5ab09467896f47300f0424385e0621c4869aa60c02be9adcc98a0d1d": &format!("04{key_to_use}"),
         // AuraExt authorities
