@@ -216,7 +216,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn localize_pase_config_should_works() {
+    async fn localize_paseo_config_should_works() {
         tracing_subscriber::fmt::init();
         let config_path = "./testing/config-paseo.toml";
         let config_path_bkp = "./testing/config-paseo.toml.bkp";
