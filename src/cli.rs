@@ -48,7 +48,7 @@ pub enum Commands {
         #[arg(long, short = 'm', default_value_t = true, verbatim_doc_comment)]
         with_monitor: bool,
         /// The network will be using for bite (will try the network + ah)
-        #[arg(short = 's', value_parser = clap::builder::PossibleValuesParser::new(["spawn", "post"]), default_value="spawn")]
+        #[arg(short = 's', value_parser = clap::builder::PossibleValuesParser::new(["spawn", "post", "after"]), default_value="spawn")]
         step: String,
     },
     /// [Helper] Generate artifacts to be used by the next step (only 'spawn' and 'post' allowed)
