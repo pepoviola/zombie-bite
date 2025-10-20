@@ -7,6 +7,7 @@ use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
 const BITE: &str = "bite";
 const SPAWN: &str = "spawn";
 const POST: &str = "post";
+const AFTER: &str = "after";
 const DEBUG: &str = "debug";
 
 // `--state-pruning` config flag (two days +1 by default)
@@ -23,6 +24,8 @@ pub enum Step {
     Spawn,
     /// Spawn from `spawn` directory
     Post,
+    /// Spawn from `post` directory
+    After,
 }
 
 impl Step {
@@ -31,6 +34,7 @@ impl Step {
             Step::Bite => String::from(BITE),
             Step::Spawn => String::from(SPAWN),
             Step::Post => String::from(POST),
+            Step::After => String::from(AFTER),
         }
     }
 
@@ -39,6 +43,7 @@ impl Step {
             Step::Bite => format!("{BITE}-{DEBUG}"),
             Step::Spawn => format!("{SPAWN}-{DEBUG}"),
             Step::Post => format!("{POST}-{DEBUG}"),
+            Step::After => String::from("{AFTER}-{DEBUG}"),
         }
     }
 
@@ -47,6 +52,7 @@ impl Step {
             Step::Bite => String::from(""), // emtpy since is initial step
             Step::Spawn => String::from(BITE),
             Step::Post => String::from(SPAWN),
+            Step::After => String::from(POST),
         }
     }
 
@@ -54,7 +60,8 @@ impl Step {
         match self {
             Step::Bite => Some(String::from(SPAWN)),
             Step::Spawn => Some(String::from(POST)),
-            Step::Post => None, // emtpy since is the last step
+            Step::Post => Some(String::from(AFTER)),
+            Step::After => None, // emtpy since is the last step
         }
     }
 }
@@ -64,6 +71,7 @@ impl From<String> for Step {
         match value.to_ascii_lowercase().as_str() {
             "post" => Step::Post,
             "spawn" => Step::Spawn,
+            "after" => Step::After,
             _ => Step::Bite,
         }
     }
