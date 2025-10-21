@@ -385,6 +385,8 @@ pub async fn generate_artifacts(
     let config = fs::read_to_string(&from_config_path)
         .await
         .expect("read config file should work");
+    let db_snaps_in_file: Vec<(usize, &str)> = config.match_indices("db_snapshot").collect();
+    let needs_to_insert_db = db_snaps_in_file.len() != snaps.len();
     let toml_config = config
         .lines()
         .map(|l| {
@@ -393,9 +395,13 @@ pub async fn generate_artifacts(
                     String::from("") // emty to remove
                 }
                 l if l.starts_with("name =") => {
-                    let snap_line = format!(r#"db_snapshot = "{}""#, snaps.remove(0));
-                    trace!("setting {snap_line}");
-                    format!("{l}\n{snap_line}")
+                    if needs_to_insert_db {
+                        let snap_line = format!(r#"db_snapshot = "{}""#, snaps.remove(0));
+                        trace!("setting {snap_line}");
+                        format!("{l}\n{snap_line}")
+                    } else {
+                        l.to_string()
+                    }
                 }
                 l if l.starts_with("chain_spec_path =") => {
                     let new_l = format!(r#"chain_spec_path = "{}""#, specs.remove(0));

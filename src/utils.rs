@@ -292,22 +292,23 @@ mod test {
         // println!("{}", array_bytes::bytes2hex("0x", &h));
     }
 
-    #[test]
-    fn twox256_works() {
-        let a: [u8; 32] = array_bytes::hex2array(
-            "0x0815e5a6dc935c696e0619181fa26d28481205e9dc378ab380d92a36a97672a1",
-        )
-        .unwrap();
-        let zero = subhasher::twox256(b"300");
-        println!("{:?}", zero);
-        println!("{}", array_bytes::bytes2hex("0x", zero));
-        println!("{:?}", a);
-
-        // let idx: CoreIndex = 0.into();
-        // let zero = subhasher::twox256(idx.encode());
-        // println!("{}", array_bytes::bytes2hex("0x", zero));
-        // let val = MessageQueueChain(sp_core::H256::zero()).encode();
-        // println!("{}", array_bytes::bytes2hex("0x", val));
+    #[tokio::test]
+    async fn localize_paseo_config_should_works() {
+        tracing_subscriber::fmt::init();
+        let config_path = "./testing/config-paseo.toml";
+        let config_path_bkp = "./testing/config-paseo.toml.bkp";
+        let _ = fs::copy(&config_path_bkp, config_path).await;
+        let _ = localize_config(config_path).await.unwrap();
+        let network_config =
+            zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
+        let alice_db = network_config
+            .relaychain()
+            .nodes()
+            .first()
+            .unwrap()
+            .db_snapshot()
+            .unwrap()
+            .to_string();
     }
 
     // #[tokio::test]
