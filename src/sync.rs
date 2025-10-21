@@ -26,6 +26,7 @@ pub async fn sync_relay_only(
     para_heads_env: Vec<(String, String)>,
     overrides_path: PathBuf,
     info_path: impl AsRef<str>,
+    maybe_target_header: Option<String>,
 ) -> Result<(DynNode, String, String), ()> {
     debug!("paras: \n {:?}", para_heads_env);
     let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
@@ -39,6 +40,10 @@ pub async fn sync_relay_only(
     } else {
         para_heads_env
     };
+
+    if let Some(target_header_path) = maybe_target_header {
+        env.push(("ZOMBIE_TARGET_HEADER_PATH".into(), target_header_path));
+    }
 
     let rc_overrides_path = overrides_path.to_string_lossy().to_string();
     env.push(("ZOMBIE_RC_OVERRIDES_PATH".to_string(), rc_overrides_path));
@@ -91,6 +96,7 @@ pub async fn sync_para(
     relaychain_endpoint: impl AsRef<str>,
     overrides_path: PathBuf,
     info_path: impl AsRef<str>,
+    maybe_target_header: Option<String>,
 ) -> Result<(DynNode, String, String, String), ()> {
     let sync_db_path = format!(
         "{}/paras/{}/sync-db",
@@ -111,6 +117,10 @@ pub async fn sync_para(
     } else {
         vec![]
     };
+
+    if let Some(target_header_path) = maybe_target_header.as_ref() {
+        env.push(("ZOMBIE_TARGET_HEADER_PATH", target_header_path));
+    }
 
     let para_overrides_path = overrides_path.to_string_lossy().to_string();
     env.push(("ZOMBIE_PARA_OVERRIDES_PATH", &para_overrides_path));
