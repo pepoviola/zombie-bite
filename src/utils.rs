@@ -270,9 +270,7 @@ mod test {
         let encoded = one.encode();
         println!("{}", array_bytes::bytes2hex("0x", encoded));
     }
-    // 0x1c6b060
-    //0x1c6b060
-    //0x60b0c601
+
     #[test]
     fn block() {
         let z = Bl(29798496).encode();
@@ -285,11 +283,6 @@ mod test {
         let d = Bl::decode(&mut ab.as_slice());
         println!("{:?}", d);
 
-        // let z = Bl(0).encode();
-        // println!("{}", array_bytes::bytes2hex("0x", &z));
-        // let c = hex::decode("000000000000000000000000000000000000000000000000000000000000000000634283f891c6ecfa542be496ad576bd40167219cdb0fc8a81b071f4e312d9ac503170a2e7597b7b7e3d84c05391d139a62b157e78786d8c082f29dcf4c11131400").unwrap();
-        // let h = HeadData(c).encode();
-        // println!("{}", array_bytes::bytes2hex("0x", &h));
     }
 
     #[tokio::test]
@@ -301,7 +294,7 @@ mod test {
         let _ = localize_config(config_path).await.unwrap();
         let network_config =
             zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
-        let alice_db = network_config
+        let _alice_db = network_config
             .relaychain()
             .nodes()
             .first()
@@ -310,33 +303,4 @@ mod test {
             .unwrap()
             .to_string();
     }
-
-    // #[tokio::test]
-    // async fn localize_config_should_works() {
-    //     let config_path = "./testing/config.toml";
-    //     let config_path_bkp = "./testing/config.toml.bkp";
-    //     let _ = fs::copy(&config_path_bkp, config_path).await;
-    //     let _ = localize_config(config_path).await.unwrap();
-    // }
-
-    // #[tokio::test]
-    // async fn localize_pase_config_should_works() {
-    //     tracing_subscriber::fmt::init();
-    //     let config_path = "./testing/config-paseo.toml";
-    //     let config_path_bkp = "./testing/config-paseo.toml.bkp";
-    //     let _ = fs::copy(&config_path_bkp, config_path).await;
-    //     let _ = localize_config(config_path).await.unwrap();
-    //     let network_config =
-    //         zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
-    //     let alice_db = network_config
-    //         .relaychain()
-    //         .nodes()
-    //         .first()
-    //         .unwrap()
-    //         .db_snapshot()
-    //         .unwrap()
-    //         .to_string();
-
-    //     assert!(alice_db.contains("./testing"));
-    // }
 }
