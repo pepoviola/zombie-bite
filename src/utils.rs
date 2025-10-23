@@ -278,11 +278,6 @@ mod test {
 
         let d = Bl::decode(&mut z.as_slice());
         println!("{:?}", d);
-
-        let ab = hex2bytes("0x1c6b060").unwrap();
-        let d = Bl::decode(&mut ab.as_slice());
-        println!("{:?}", d);
-
     }
 
     #[tokio::test]
