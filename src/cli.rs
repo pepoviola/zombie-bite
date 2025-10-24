@@ -23,10 +23,16 @@ pub enum Commands {
         /// The resulting network will be running with this runtime.
         #[arg(long = "rc-override", verbatim_doc_comment)]
         relay_runtime: Option<String>,
+        /// If provided we will _bite_ the live network at the supplied block hieght
+        #[arg(long = "rc-bite-at", verbatim_doc_comment)]
+        relay_bite_at: Option<u32>,
         /// If provided we will override the runtime as part of the process of 'bite'
         /// The resulting version of AH will be running with this runtime.
         #[arg(long = "ah-override", verbatim_doc_comment)]
         ah_runtime: Option<String>,
+        /// If provided we will _bite_ the live network at the supplied block hieght
+        #[arg(long = "ah-bite-at", verbatim_doc_comment)]
+        ah_bite_at: Option<u32>,
         /// Base path to use. if not provided we will check the env 'ZOMBIE_BITE_BASE_PATH' and if not present we will use `<cwd>_timestamp`
         #[arg(long, short = 'd', verbatim_doc_comment)]
         base_path: Option<String>,
