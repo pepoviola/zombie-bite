@@ -458,13 +458,13 @@ async fn generate_config(
 ) -> Result<NetworkConfig, String> {
     let leaked_rust_log = env::var("RUST_LOG_RC").unwrap_or_else(|_| {
         String::from(
-            "babe=trace,grandpa=info,runtime=trace,consensus::common=trace,parachain=debug,parachain::gossip-support=info",
+            "babe=debug,grandpa=info,runtime=debug,consensus::common=debug,parachain=debug,parachain::gossip-support=info",
         )
     });
 
     let para_leaked_rust_log = env::var("RUST_LOG_COL").unwrap_or_else(|_| {
         String::from(
-            "aura=debug,runtime=debug,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,xcm=trace",
+            "aura=debug,runtime=debug,cumulus-consensus=debug,consensus::common=debug,parachain::collation-generation=debug,parachain::collator-protocol=debug,parachain=debug,xcm=debug",
         )
     });
 
