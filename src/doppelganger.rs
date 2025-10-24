@@ -528,7 +528,7 @@ async fn generate_config(
 
         if let Ok(extra_args) = env::var("ZOMBIE_BITE_RC_EXTRA_ARGS") {
             for extra in extra_args.split(',') {
-                default_args.push(extra.into());
+                default_args.push(extra.trim().into());
             }
         }
 
@@ -618,7 +618,7 @@ async fn generate_config(
 
             if let Ok(extra_args) = env::var("ZOMBIE_BITE_AH_EXTRA_ARGS") {
                 for extra in extra_args.split(',') {
-                    para_default_args.push(extra.into());
+                    para_default_args.push(extra.trim().into());
                 }
             }
 
