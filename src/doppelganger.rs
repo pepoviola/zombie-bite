@@ -518,18 +518,26 @@ async fn generate_config(
 
     // config a new network with alice/bob
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
-        let relay_builder = r
-            .with_chain(relaychain.chain.as_str())
-            .with_default_command(relaychain.cmd.as_str())
-            .with_chain_spec_path(chain_spec_path)
-            .with_default_db_snapshot(db_path)
-            .with_default_args(vec![
+        let mut default_args = vec![
                 ("-l", leaked_rust_log.as_str()).into(),
                 "--discover-local".into(),
                 "--allow-private-ip".into(),
                 "--no-hardware-benchmarks".into(),
                 ("--state-pruning", get_state_pruning_config().as_str()).into(),
-            ]);
+        ];
+
+        if let Ok(extra_args) = env::var("ZOMBIE_BITE_RC_EXTRA_ARGS") {
+            for extra in extra_args.split(',') {
+                default_args.push(extra.into());
+            }
+        }
+
+        let relay_builder = r
+            .with_chain(relaychain.chain.as_str())
+            .with_default_command(relaychain.cmd.as_str())
+            .with_chain_spec_path(chain_spec_path)
+            .with_default_db_snapshot(db_path)
+            .with_default_args( default_args);
 
         // We override the code directly in the db
         // relay_builder = if let Some(override_path) = relaychain.override_wasm {
@@ -593,6 +601,27 @@ async fn generate_config(
                 get_random_port().await
             };
 
+
+            let mut para_default_args = vec![
+                (
+                    "--relay-chain-rpc-urls",
+                    format!("ws://127.0.0.1:{rpc_alice_port}").as_str(),
+                )
+                    .into(),
+                ("-l", para_leaked_rust_log.as_str()).into(),
+                "--force-authoring".into(),
+                "--discover-local".into(),
+                "--allow-private-ip".into(),
+                "--no-hardware-benchmarks".into(),
+                ("--state-pruning", get_state_pruning_config().as_str()).into(),
+            ];
+
+            if let Ok(extra_args) = env::var("ZOMBIE_BITE_AH_EXTRA_ARGS") {
+                for extra in extra_args.split(',') {
+                    para_default_args.push(extra.into());
+                }
+            }
+
             config = config.with_parachain(|p| {
                 let para_builder = p
                     .with_id(1000)
@@ -604,19 +633,7 @@ async fn generate_config(
                 para_builder.with_collator(|c| {
                     c.with_name("collator")
                         .with_rpc_port(para_rpc_port)
-                        .with_args(vec![
-                            (
-                                "--relay-chain-rpc-urls",
-                                format!("ws://127.0.0.1:{rpc_alice_port}").as_str(),
-                            )
-                                .into(),
-                            ("-l", para_leaked_rust_log.as_str()).into(),
-                            "--force-authoring".into(),
-                            "--discover-local".into(),
-                            "--allow-private-ip".into(),
-                            "--no-hardware-benchmarks".into(),
-                            ("--state-pruning", get_state_pruning_config().as_str()).into(),
-                        ])
+                        .with_args(para_default_args)
                 })
             })
         }
@@ -822,5 +839,32 @@ mod test {
             .unwrap();
         println!("{:?}", n);
         loop {}
+    }
+
+    #[tokio::test]
+    async fn test_generate_config() {
+
+        std::env::set_var("ZOMBIE_BITE_AH_EXTRA_ARGS", "--db-cache=24000, --trie-cache-size=24000, --runtime-cache-size=255");
+
+        let relay = ChainArtifact {
+            cmd: "doppelganger".into(),
+            chain: "polkadot".into(),
+            spec_path: "/home/ubuntu/something.json".into(),
+            snap_path: "/home/ubuntu/something.tgz".into(),
+            override_wasm: None
+        };
+        let ah = ChainArtifact {
+            cmd: "doppelganger-parachain".into(),
+            chain: "ah-polkadot".into(),
+            spec_path: "/home/ubuntu/something-ah.json".into(),
+            snap_path: "/home/ubuntu/something-ah.tgz".into(),
+            override_wasm: None
+        };
+
+        let network_config = generate_config(relay, vec![ah], None).await.unwrap();
+
+        let toml = network_config.dump_to_toml().unwrap();
+        println!("{toml}");
+        assert!(toml.contains("--db-cache=24000"));
     }
 }
