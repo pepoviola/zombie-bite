@@ -178,3 +178,5 @@ Zombie-bite _reads_ a few __env vars__ to allow users to customize th behavior:
 - ZOMBIE_BITE_AH_PORT: port to use for the collator.
 - ZOMBIE_SUDO: sudo key to set in sudo pallet (IFF present) and in RC manager.
 - ZOMBIE_BITE_STATE_PRUNING: set the value of the flag `--state-pruning` (default value 28801)
+- ZOMBIE_BITE_RC_EXTRA_ARGS: Comma separated list of args to add.
+- ZOMBIE_BITE_AH_EXTRA_ARGS: Comma separated list of args to add. (e.g. "--db-cache=24000", --trie-cache-size=24000, --runtime-cache-size=255").
