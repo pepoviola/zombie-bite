@@ -243,8 +243,6 @@ pub async fn get_header_from_block(block_number: u32, endpoint: &str) -> Result<
 
 #[cfg(test)]
 mod test {
-    use array_bytes::hex2bytes;
-
     use super::*;
 
     #[tokio::test]
