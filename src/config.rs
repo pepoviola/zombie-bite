@@ -16,6 +16,9 @@ pub fn get_state_pruning_config() -> String {
     env::var("ZOMBIE_BITE_STATE_PRUNING").unwrap_or_else(|_| STATE_PRUNING.to_string())
 }
 
+pub const AH_POLKADOT_RCP: &str = "https://asset-hub-polkadot-rpc.n.dwellir.com";
+pub const AH_KUSAMA_RCP: &str = "https://asset-hub-kusama-rpc.n.dwellir.com";
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Step {
     /// Initial step
@@ -121,21 +124,25 @@ impl Context {
 
 type MaybeWasmOverridePath = Option<String>;
 type MaybeSyncUrl = Option<String>;
+type MaybeByteAt = Option<u32>;
 
 #[derive(Debug, PartialEq)]
 pub enum Relaychain {
     Polkadot {
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     },
     Kusama {
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     },
 
     Paseo {
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     },
 }
 
@@ -145,14 +152,17 @@ impl Relaychain {
             "kusama" => Self::Kusama {
                 maybe_override: None,
                 maybe_sync_url: None,
+                maybe_bite_at: None
             },
             "paseo" => Self::Paseo {
                 maybe_override: None,
                 maybe_sync_url: None,
+                maybe_bite_at: None
             },
             _ => Self::Polkadot {
                 maybe_override: None,
                 maybe_sync_url: None,
+                maybe_bite_at: None
             },
         }
     }
@@ -161,19 +171,23 @@ impl Relaychain {
         network: impl AsRef<str>,
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt
     ) -> Self {
         match network.as_ref() {
             "kusama" => Self::Kusama {
                 maybe_override,
                 maybe_sync_url,
+                maybe_bite_at
             },
             "paseo" => Self::Paseo {
                 maybe_override,
                 maybe_sync_url,
+                maybe_bite_at
             },
             _ => Self::Polkadot {
                 maybe_override,
                 maybe_sync_url,
+                maybe_bite_at
             },
         }
     }
@@ -203,6 +217,14 @@ impl Relaychain {
         })
     }
 
+    pub fn rpc_endpoint(&self) -> String {
+        String::from(match self {
+            Relaychain::Polkadot { .. } => "wss://polkadot-rpc.dwellir.com",
+            Relaychain::Kusama { .. } => "wss://kusama-rpc.dwellir.com",
+            Relaychain::Paseo { .. } => "wss://paseo-rpc.dwellir.com",
+        })
+    }
+
     pub fn context(&self) -> Context {
         Context::Relaychain
     }
@@ -222,22 +244,56 @@ impl Relaychain {
             _ => 2400,
         }
     }
+
+    pub fn at_block(&self) -> Option<u32> {
+        match self {
+            Relaychain::Kusama { maybe_bite_at, .. }
+            | Relaychain::Polkadot { maybe_bite_at, .. }
+            | Relaychain::Paseo { maybe_bite_at, .. } => maybe_bite_at.clone()
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Parachain {
-    AssetHub(MaybeWasmOverridePath),
-    Coretime(MaybeWasmOverridePath),
-    People(MaybeWasmOverridePath),
+    AssetHub {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl
+    },
+    Coretime {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl
+    },
+    People {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl
+    }
     // Bridge
 }
 
 impl Parachain {
+    pub fn new(chain: &str) -> Self {
+        match chain {
+            "coretime" => {
+                Parachain::Coretime { maybe_override: None, maybe_bite_at: None, maybe_rpc_endpoint: None }
+            },
+            "people" => {
+                Parachain::People { maybe_override: None, maybe_bite_at: None, maybe_rpc_endpoint: None }
+            },
+            _ => {
+                Parachain::AssetHub { maybe_override: None, maybe_bite_at: None, maybe_rpc_endpoint: None }
+            }
+        }
+    }
+
     pub fn as_local_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
-            Parachain::AssetHub(_) => "asset-hub",
-            Parachain::Coretime(_) => "coretime",
-            Parachain::People(_) => "people",
+            Parachain::AssetHub { .. } => "asset-hub",
+            Parachain::Coretime { .. } => "coretime",
+            Parachain::People { .. } => "people",
         };
 
         format!("{para_part}-{relay_part}-local")
@@ -245,9 +301,9 @@ impl Parachain {
 
     pub fn as_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
-            Parachain::AssetHub(_) => "asset-hub",
-            Parachain::Coretime(_) => "coretime",
-            Parachain::People(_) => "people",
+            Parachain::AssetHub { .. } => "asset-hub",
+            Parachain::Coretime { .. } => "coretime",
+            Parachain::People { .. } => "people",
         };
 
         format!("{para_part}-{relay_part}")
@@ -259,15 +315,27 @@ impl Parachain {
 
     pub fn id(&self) -> u32 {
         match self {
-            Parachain::AssetHub(_) => 1000,
-            Parachain::Coretime(_) => 1005,
-            Parachain::People(_) => 1001,
+            Parachain::AssetHub { .. } => 1000,
+            Parachain::Coretime { .. } => 1005,
+            Parachain::People { .. } => 1001,
         }
     }
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Parachain::AssetHub(x) | Parachain::Coretime(x) | Parachain::People(x) => x.as_deref(),
+            Parachain::AssetHub{ maybe_override, .. } | Parachain::Coretime { maybe_override, .. } | Parachain::People { maybe_override, .. } => maybe_override.as_deref(),
+        }
+    }
+
+    pub fn at_block(&self) -> Option<u32> {
+        match self {
+            Parachain::AssetHub{ maybe_bite_at, .. } | Parachain::Coretime { maybe_bite_at, .. } | Parachain::People { maybe_bite_at, .. } => maybe_bite_at.clone()
+        }
+    }
+
+    pub fn rpc_endpoint(&self) -> Option<&str> {
+        match self {
+            Parachain::AssetHub{ maybe_rpc_endpoint, .. } | Parachain::Coretime { maybe_rpc_endpoint, .. } | Parachain::People { maybe_rpc_endpoint, .. } => maybe_rpc_endpoint.as_deref(),
         }
     }
 }
@@ -327,9 +395,9 @@ pub fn generate_network_config(
     let network_builder = paras.iter().fold(network_builder, |builder, para| {
         println!("para: {:?}", para);
         let (chain_part, id) = match para {
-            Parachain::AssetHub(_) => ("asset-hub", para.id()),
-            Parachain::Coretime(_) => ("coretime", para.id()),
-            Parachain::People(_) => ("people", para.id()),
+            Parachain::AssetHub { .. } => ("asset-hub", para.id()),
+            Parachain::Coretime{ .. } => ("coretime", para.id()),
+            Parachain::People { .. } => ("people", para.id()),
         };
         let chain = format!("{}-{}",chain_part, relay_chain);
 
@@ -379,7 +447,7 @@ mod test {
     #[test]
     fn config_with_para_ok() {
         let config =
-            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::AssetHub(None)])
+            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::new("asset-hub")])
                 .unwrap();
         let parachain = config.parachains().first().unwrap().chain().unwrap();
         assert_eq!(parachain.as_str(), "asset-hub-kusama-local");
@@ -388,7 +456,7 @@ mod test {
     #[tokio::test]
     async fn spec() {
         let config =
-            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::AssetHub(None)])
+            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::new("asset-hub")])
                 .unwrap();
         println!("config: {:#?}", config);
         let spec = zombienet_orchestrator::NetworkSpec::from_config(&config)
