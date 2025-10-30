@@ -381,13 +381,13 @@ pub fn generate_network_config(
             let rpc_port = port
                 .parse()
                 .expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16");
-            relaychain_builder.with_node(|node| node.with_name(ALICE).with_rpc_port(rpc_port))
+            relaychain_builder.with_validator(|node| node.with_name(ALICE).with_rpc_port(rpc_port))
         } else {
-            relaychain_builder.with_node(|node| node.with_name(ALICE))
+            relaychain_builder.with_validator(|node| node.with_name(ALICE))
         };
 
         // .with_node(|node| node.with_name(ALICE))
-        relaychain_builder.with_node(|node| node.with_name(BOB))
+        relaychain_builder.with_validator(|node| node.with_name(BOB))
         // .with_node(|node| node.with_name(CHARLIE))
         // .with_node(|node| node.with_name(DAVE))
     });

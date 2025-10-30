@@ -575,8 +575,8 @@ async fn generate_config(
         // };
 
         relay_builder
-            .with_node(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
-            .with_node(|node| node.with_name("bob").with_rpc_port(rpc_bob_port))
+            .with_validator(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
+            .with_validator(|node| node.with_name("bob").with_rpc_port(rpc_bob_port))
     });
     if !paras.is_empty() {
         // TODO: enable for multiple paras
