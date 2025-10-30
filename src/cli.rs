@@ -35,7 +35,7 @@ pub enum Commands {
         /// The resulting version of AH will be running with this runtime.
         #[arg(long = "ah-override", verbatim_doc_comment)]
         ah_runtime: Option<String>,
-        /// Parachains to include: asset-hub, coretime, people, bridge-hub (comma-separated)
+        /// Parachains to include: asset-hub, coretime, people, bridge-hub, collectives (comma-separated)
         #[arg(long, short = 'p', value_delimiter = ',', verbatim_doc_comment)]
         parachains: Option<Vec<String>>,
         /// If provided we will _bite_ the live network at the supplied block hieght
@@ -203,6 +203,11 @@ pub fn resolve_bite_config(
                     maybe_rpc_endpoint: None,
                 }),
                 "bridge-hub" => Some(Parachain::BridgeHub {
+                    maybe_override: None,
+                    maybe_bite_at: None,
+                    maybe_rpc_endpoint: None,
+                }),
+                "collectives" => Some(Parachain::Collectives {
                     maybe_override: None,
                     maybe_bite_at: None,
                     maybe_rpc_endpoint: None,

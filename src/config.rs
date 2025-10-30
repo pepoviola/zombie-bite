@@ -277,6 +277,11 @@ pub enum Parachain {
         maybe_bite_at: MaybeByteAt,
         maybe_rpc_endpoint: MaybeSyncUrl,
     },
+    Collectives {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl,
+    },
 }
 
 impl Parachain {
@@ -288,6 +293,11 @@ impl Parachain {
                 maybe_rpc_endpoint: None,
             },
             "people" => Parachain::People {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+            "collectives" => Parachain::Collectives {
                 maybe_override: None,
                 maybe_bite_at: None,
                 maybe_rpc_endpoint: None,
@@ -306,6 +316,7 @@ impl Parachain {
             Parachain::Coretime { .. } => "coretime",
             Parachain::People { .. } => "people",
             Parachain::BridgeHub { .. } => "bridge-hub",
+            Parachain::Collectives { .. } => "collectives",
         };
 
         format!("{para_part}-{relay_part}-local")
@@ -317,6 +328,7 @@ impl Parachain {
             Parachain::Coretime { .. } => "coretime",
             Parachain::People { .. } => "people",
             Parachain::BridgeHub { .. } => "bridge-hub",
+            Parachain::Collectives { .. } => "collectives",
         };
 
         format!("{para_part}-{relay_part}")
@@ -332,6 +344,7 @@ impl Parachain {
             Parachain::Coretime { .. } => 1005,
             Parachain::People { .. } => 1001,
             Parachain::BridgeHub { .. } => 1002,
+            Parachain::Collectives { .. } => 1001,  // TODO: fix this
         }
     }
 
@@ -340,7 +353,8 @@ impl Parachain {
             Parachain::AssetHub { maybe_override, .. }
             | Parachain::Coretime { maybe_override, .. }
             | Parachain::People { maybe_override, .. }
-            | Parachain::BridgeHub { maybe_override, .. } => maybe_override.as_deref(),
+            | Parachain::BridgeHub { maybe_override, .. }
+            | Parachain::Collectives { maybe_override, .. } => maybe_override.as_deref(),
         }
     }
 
@@ -349,7 +363,8 @@ impl Parachain {
             Parachain::AssetHub { maybe_bite_at, .. }
             | Parachain::Coretime { maybe_bite_at, .. }
             | Parachain::People { maybe_bite_at, .. }
-            | Parachain::BridgeHub { maybe_bite_at, .. } => *maybe_bite_at,
+            | Parachain::BridgeHub { maybe_bite_at, .. }
+            | Parachain::Collectives { maybe_bite_at, .. } => *maybe_bite_at,
         }
     }
 
@@ -365,6 +380,9 @@ impl Parachain {
                 maybe_rpc_endpoint, ..
             }
             | Parachain::BridgeHub {
+                maybe_rpc_endpoint, ..
+            }
+            | Parachain::Collectives {
                 maybe_rpc_endpoint, ..
             } => maybe_rpc_endpoint.as_deref(),
         }
@@ -430,6 +448,7 @@ pub fn generate_network_config(
             Parachain::Coretime{ .. } => ("coretime", para.id()),
             Parachain::People { .. } => ("people", para.id()),
             Parachain::BridgeHub { .. } => ("bridge-hub", para.id()),
+            Parachain::Collectives { .. } => ("collectives", para.id()),
         };
         let chain = format!("{}-{}",chain_part, relay_chain);
 
@@ -514,6 +533,11 @@ impl ParachainConfig {
                     maybe_rpc_endpoint: self.rpc_endpoint.clone(),
                 }),
                 "bridge-hub" => Some(Parachain::BridgeHub {
+                    maybe_override: self.runtime_override.clone(),
+                    maybe_bite_at: self.bite_at,
+                    maybe_rpc_endpoint: self.rpc_endpoint.clone(),
+                }),
+                "collectives" => Some(Parachain::Collectives {
                     maybe_override: self.runtime_override.clone(),
                     maybe_bite_at: self.bite_at,
                     maybe_rpc_endpoint: self.rpc_endpoint.clone(),
