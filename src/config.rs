@@ -17,6 +17,9 @@ pub fn get_state_pruning_config() -> String {
     env::var("ZOMBIE_BITE_STATE_PRUNING").unwrap_or_else(|_| STATE_PRUNING.to_string())
 }
 
+pub const AH_POLKADOT_RCP: &str = "https://asset-hub-polkadot-rpc.n.dwellir.com";
+pub const AH_KUSAMA_RCP: &str = "https://asset-hub-kusama-rpc.n.dwellir.com";
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Step {
     /// Initial step
@@ -122,21 +125,25 @@ impl Context {
 
 type MaybeWasmOverridePath = Option<String>;
 type MaybeSyncUrl = Option<String>;
+type MaybeByteAt = Option<u32>;
 
 #[derive(Debug, PartialEq)]
 pub enum Relaychain {
     Polkadot {
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     },
     Kusama {
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     },
 
     Paseo {
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     },
 }
 
@@ -146,14 +153,17 @@ impl Relaychain {
             "kusama" => Self::Kusama {
                 maybe_override: None,
                 maybe_sync_url: None,
+                maybe_bite_at: None,
             },
             "paseo" => Self::Paseo {
                 maybe_override: None,
                 maybe_sync_url: None,
+                maybe_bite_at: None,
             },
             _ => Self::Polkadot {
                 maybe_override: None,
                 maybe_sync_url: None,
+                maybe_bite_at: None,
             },
         }
     }
@@ -162,19 +172,23 @@ impl Relaychain {
         network: impl AsRef<str>,
         maybe_override: MaybeWasmOverridePath,
         maybe_sync_url: MaybeSyncUrl,
+        maybe_bite_at: MaybeByteAt,
     ) -> Self {
         match network.as_ref() {
             "kusama" => Self::Kusama {
                 maybe_override,
                 maybe_sync_url,
+                maybe_bite_at,
             },
             "paseo" => Self::Paseo {
                 maybe_override,
                 maybe_sync_url,
+                maybe_bite_at,
             },
             _ => Self::Polkadot {
                 maybe_override,
                 maybe_sync_url,
+                maybe_bite_at,
             },
         }
     }
@@ -204,6 +218,14 @@ impl Relaychain {
         })
     }
 
+    pub fn rpc_endpoint(&self) -> String {
+        String::from(match self {
+            Relaychain::Polkadot { .. } => "wss://polkadot-rpc.dwellir.com",
+            Relaychain::Kusama { .. } => "wss://kusama-rpc.dwellir.com",
+            Relaychain::Paseo { .. } => "wss://paseo-rpc.dwellir.com",
+        })
+    }
+
     pub fn context(&self) -> Context {
         Context::Relaychain
     }
@@ -223,23 +245,67 @@ impl Relaychain {
             _ => 2400,
         }
     }
+
+    pub fn at_block(&self) -> Option<u32> {
+        match self {
+            Relaychain::Kusama { maybe_bite_at, .. }
+            | Relaychain::Polkadot { maybe_bite_at, .. }
+            | Relaychain::Paseo { maybe_bite_at, .. } => *maybe_bite_at,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Parachain {
-    AssetHub(MaybeWasmOverridePath),
-    Coretime(MaybeWasmOverridePath),
-    People(MaybeWasmOverridePath),
-    BridgeHub(MaybeWasmOverridePath),
+    AssetHub {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl,
+    },
+    Coretime {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl,
+    },
+    People {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl,
+    },
+    BridgeHub {
+        maybe_override: MaybeWasmOverridePath,
+        maybe_bite_at: MaybeByteAt,
+        maybe_rpc_endpoint: MaybeSyncUrl,
+    },
 }
 
 impl Parachain {
+    pub fn new(chain: &str) -> Self {
+        match chain {
+            "coretime" => Parachain::Coretime {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+            "people" => Parachain::People {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+            _ => Parachain::AssetHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+        }
+    }
+
     pub fn as_local_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
-            Parachain::AssetHub(_) => "asset-hub",
-            Parachain::Coretime(_) => "coretime",
-            Parachain::People(_) => "people",
-            Parachain::BridgeHub(_) => "bridge-hub",
+            Parachain::AssetHub { .. } => "asset-hub",
+            Parachain::Coretime { .. } => "coretime",
+            Parachain::People { .. } => "people",
+            Parachain::BridgeHub { .. } => "bridge-hub",
         };
 
         format!("{para_part}-{relay_part}-local")
@@ -247,10 +313,10 @@ impl Parachain {
 
     pub fn as_chain_string(&self, relay_part: &str) -> String {
         let para_part = match self {
-            Parachain::AssetHub(_) => "asset-hub",
-            Parachain::Coretime(_) => "coretime",
-            Parachain::People(_) => "people",
-            Parachain::BridgeHub(_) => "bridge-hub",
+            Parachain::AssetHub { .. } => "asset-hub",
+            Parachain::Coretime { .. } => "coretime",
+            Parachain::People { .. } => "people",
+            Parachain::BridgeHub { .. } => "bridge-hub",
         };
 
         format!("{para_part}-{relay_part}")
@@ -262,19 +328,45 @@ impl Parachain {
 
     pub fn id(&self) -> u32 {
         match self {
-            Parachain::AssetHub(_) => 1000,
-            Parachain::Coretime(_) => 1005,
-            Parachain::People(_) => 1001,
-            Parachain::BridgeHub(_) => 1002,
+            Parachain::AssetHub { .. } => 1000,
+            Parachain::Coretime { .. } => 1005,
+            Parachain::People { .. } => 1001,
+            Parachain::BridgeHub { .. } => 1002,
         }
     }
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Parachain::AssetHub(x)
-            | Parachain::Coretime(x)
-            | Parachain::People(x)
-            | Parachain::BridgeHub(x) => x.as_deref(),
+            Parachain::AssetHub { maybe_override, .. }
+            | Parachain::Coretime { maybe_override, .. }
+            | Parachain::People { maybe_override, .. }
+            | Parachain::BridgeHub { maybe_override, .. } => maybe_override.as_deref(),
+        }
+    }
+
+    pub fn at_block(&self) -> Option<u32> {
+        match self {
+            Parachain::AssetHub { maybe_bite_at, .. }
+            | Parachain::Coretime { maybe_bite_at, .. }
+            | Parachain::People { maybe_bite_at, .. }
+            | Parachain::BridgeHub { maybe_bite_at, .. } => *maybe_bite_at,
+        }
+    }
+
+    pub fn rpc_endpoint(&self) -> Option<&str> {
+        match self {
+            Parachain::AssetHub {
+                maybe_rpc_endpoint, ..
+            }
+            | Parachain::Coretime {
+                maybe_rpc_endpoint, ..
+            }
+            | Parachain::People {
+                maybe_rpc_endpoint, ..
+            }
+            | Parachain::BridgeHub {
+                maybe_rpc_endpoint, ..
+            } => maybe_rpc_endpoint.as_deref(),
         }
     }
 }
@@ -334,10 +426,10 @@ pub fn generate_network_config(
     let network_builder = paras.iter().fold(network_builder, |builder, para| {
         println!("para: {:?}", para);
         let (chain_part, id) = match para {
-            Parachain::AssetHub(_) => ("asset-hub", para.id()),
-            Parachain::Coretime(_) => ("coretime", para.id()),
-            Parachain::People(_) => ("people", para.id()),
-            Parachain::BridgeHub(_) => ("bridge-hub", para.id()),
+            Parachain::AssetHub { .. } => ("asset-hub", para.id()),
+            Parachain::Coretime{ .. } => ("coretime", para.id()),
+            Parachain::People { .. } => ("people", para.id()),
+            Parachain::BridgeHub { .. } => ("bridge-hub", para.id()),
         };
         let chain = format!("{}-{}",chain_part, relay_chain);
 
@@ -389,6 +481,7 @@ pub struct RelaychainConfig {
     pub network: String, // polkadot, kusama, paseo
     pub runtime_override: Option<String>,
     pub sync_url: Option<String>,
+    pub bite_at: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -397,16 +490,34 @@ pub struct ParachainConfig {
     pub parachain_type: String, // asset-hub, coretime, people, bridge-hub
     pub runtime_override: Option<String>,
     pub enabled: Option<bool>, // default true
+    pub bite_at: Option<u32>,
+    pub rpc_endpoint: Option<String>,
 }
 
 impl ParachainConfig {
     pub fn to_parachain(&self) -> Option<Parachain> {
         if self.enabled.unwrap_or(true) {
             match self.parachain_type.as_str() {
-                "asset-hub" => Some(Parachain::AssetHub(self.runtime_override.clone())),
-                "coretime" => Some(Parachain::Coretime(self.runtime_override.clone())),
-                "people" => Some(Parachain::People(self.runtime_override.clone())),
-                "bridge-hub" => Some(Parachain::BridgeHub(self.runtime_override.clone())),
+                "asset-hub" => Some(Parachain::AssetHub {
+                    maybe_override: self.runtime_override.clone(),
+                    maybe_bite_at: self.bite_at,
+                    maybe_rpc_endpoint: self.rpc_endpoint.clone(),
+                }),
+                "coretime" => Some(Parachain::Coretime {
+                    maybe_override: self.runtime_override.clone(),
+                    maybe_bite_at: self.bite_at,
+                    maybe_rpc_endpoint: self.rpc_endpoint.clone(),
+                }),
+                "people" => Some(Parachain::People {
+                    maybe_override: self.runtime_override.clone(),
+                    maybe_bite_at: self.bite_at,
+                    maybe_rpc_endpoint: self.rpc_endpoint.clone(),
+                }),
+                "bridge-hub" => Some(Parachain::BridgeHub {
+                    maybe_override: self.runtime_override.clone(),
+                    maybe_bite_at: self.bite_at,
+                    maybe_rpc_endpoint: self.rpc_endpoint.clone(),
+                }),
                 _ => None,
             }
         } else {
@@ -427,6 +538,7 @@ impl ZombieBiteConfig {
             &self.relaychain.network,
             self.relaychain.runtime_override.clone(),
             self.relaychain.sync_url.clone(),
+            self.relaychain.bite_at,
         )
     }
 
@@ -450,18 +562,22 @@ mod test {
 
     #[test]
     fn config_with_para_ok() {
-        let config =
-            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::AssetHub(None)])
-                .unwrap();
+        let config = generate_network_config(
+            &Relaychain::new("kusama"),
+            vec![Parachain::new("asset-hub")],
+        )
+        .unwrap();
         let parachain = config.parachains().first().unwrap().chain().unwrap();
         assert_eq!(parachain.as_str(), "asset-hub-kusama-local");
     }
 
     #[tokio::test]
     async fn spec() {
-        let config =
-            generate_network_config(&Relaychain::new("kusama"), vec![Parachain::AssetHub(None)])
-                .unwrap();
+        let config = generate_network_config(
+            &Relaychain::new("kusama"),
+            vec![Parachain::new("asset-hub")],
+        )
+        .unwrap();
         println!("config: {:#?}", config);
         let spec = zombienet_orchestrator::NetworkSpec::from_config(&config)
             .await
@@ -476,11 +592,13 @@ mod test {
             parachain_type: "asset-hub".to_string(),
             runtime_override: None,
             enabled: None, // Not specified
+            bite_at: None,
+            rpc_endpoint: None,
         };
 
         assert!(config.to_parachain().is_some());
         match config.to_parachain().unwrap() {
-            Parachain::AssetHub(_) => {}
+            Parachain::AssetHub { .. } => {}
             _ => panic!("Expected AssetHub parachain"),
         }
     }
@@ -491,11 +609,13 @@ mod test {
             parachain_type: "coretime".to_string(),
             runtime_override: None,
             enabled: Some(true),
+            bite_at: None,
+            rpc_endpoint: None,
         };
 
         assert!(config.to_parachain().is_some());
         match config.to_parachain().unwrap() {
-            Parachain::Coretime(_) => {}
+            Parachain::Coretime { .. } => {}
             _ => panic!("Expected Coretime parachain"),
         }
     }
@@ -506,6 +626,8 @@ mod test {
             parachain_type: "people".to_string(),
             runtime_override: None,
             enabled: Some(false),
+            bite_at: None,
+            rpc_endpoint: None,
         };
 
         assert!(config.to_parachain().is_none());
@@ -518,11 +640,16 @@ mod test {
             parachain_type: "bridge-hub".to_string(),
             runtime_override: Some(override_path.clone()),
             enabled: Some(true),
+            bite_at: None,
+            rpc_endpoint: None,
         };
 
         let parachain = config.to_parachain().unwrap();
         match parachain {
-            Parachain::BridgeHub(Some(path)) => assert_eq!(path, override_path),
+            Parachain::BridgeHub {
+                maybe_override: Some(path),
+                ..
+            } => assert_eq!(path, override_path),
             _ => panic!("Expected BridgeHub with runtime override"),
         }
     }
@@ -533,6 +660,8 @@ mod test {
             parachain_type: "invalid-chain".to_string(),
             runtime_override: None,
             enabled: Some(true),
+            bite_at: None,
+            rpc_endpoint: None,
         };
 
         assert!(config.to_parachain().is_none());
@@ -547,6 +676,8 @@ mod test {
                 parachain_type: parachain_type.to_string(),
                 runtime_override: None,
                 enabled: Some(true),
+                bite_at: None,
+                rpc_endpoint: None,
             };
 
             assert!(
@@ -559,10 +690,42 @@ mod test {
 
     #[test]
     fn parachain_ids_are_correct() {
-        assert_eq!(Parachain::AssetHub(None).id(), 1000);
-        assert_eq!(Parachain::Coretime(None).id(), 1005);
-        assert_eq!(Parachain::People(None).id(), 1001);
-        assert_eq!(Parachain::BridgeHub(None).id(), 1002);
+        assert_eq!(
+            Parachain::AssetHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .id(),
+            1000
+        );
+        assert_eq!(
+            Parachain::Coretime {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .id(),
+            1005
+        );
+        assert_eq!(
+            Parachain::People {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .id(),
+            1001
+        );
+        assert_eq!(
+            Parachain::BridgeHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .id(),
+            1002
+        );
     }
 
     #[test]
@@ -570,19 +733,39 @@ mod test {
         let relay = "polkadot";
 
         assert_eq!(
-            Parachain::AssetHub(None).as_chain_string(relay),
+            Parachain::AssetHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_chain_string(relay),
             "asset-hub-polkadot"
         );
         assert_eq!(
-            Parachain::Coretime(None).as_chain_string(relay),
+            Parachain::Coretime {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_chain_string(relay),
             "coretime-polkadot"
         );
         assert_eq!(
-            Parachain::People(None).as_chain_string(relay),
+            Parachain::People {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_chain_string(relay),
             "people-polkadot"
         );
         assert_eq!(
-            Parachain::BridgeHub(None).as_chain_string(relay),
+            Parachain::BridgeHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_chain_string(relay),
             "bridge-hub-polkadot"
         );
     }
@@ -592,19 +775,39 @@ mod test {
         let relay = "kusama";
 
         assert_eq!(
-            Parachain::AssetHub(None).as_local_chain_string(relay),
+            Parachain::AssetHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_local_chain_string(relay),
             "asset-hub-kusama-local"
         );
         assert_eq!(
-            Parachain::Coretime(None).as_local_chain_string(relay),
+            Parachain::Coretime {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_local_chain_string(relay),
             "coretime-kusama-local"
         );
         assert_eq!(
-            Parachain::People(None).as_local_chain_string(relay),
+            Parachain::People {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_local_chain_string(relay),
             "people-kusama-local"
         );
         assert_eq!(
-            Parachain::BridgeHub(None).as_local_chain_string(relay),
+            Parachain::BridgeHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None
+            }
+            .as_local_chain_string(relay),
             "bridge-hub-kusama-local"
         );
     }
@@ -631,7 +834,7 @@ mod test {
         let sync_url = Some("wss://custom-rpc.example.com".to_string());
 
         let relaychain =
-            Relaychain::new_with_values("kusama", runtime_path.clone(), sync_url.clone());
+            Relaychain::new_with_values("kusama", runtime_path.clone(), sync_url.clone(), None);
 
         assert_eq!(relaychain.wasm_overrides(), runtime_path.as_deref());
         match relaychain {
@@ -651,10 +854,26 @@ mod test {
     fn generate_config_with_all_parachains() {
         let relaychain = Relaychain::new("polkadot");
         let parachains = vec![
-            Parachain::AssetHub(None),
-            Parachain::Coretime(None),
-            Parachain::People(None),
-            Parachain::BridgeHub(None),
+            Parachain::AssetHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+            Parachain::Coretime {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+            Parachain::People {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
+            Parachain::BridgeHub {
+                maybe_override: None,
+                maybe_bite_at: None,
+                maybe_rpc_endpoint: None,
+            },
         ];
 
         let config = generate_network_config(&relaychain, parachains).unwrap();
@@ -667,10 +886,13 @@ mod test {
             "kusama",
             Some("/path/to/relay_runtime.wasm".to_string()),
             None,
+            None,
         );
-        let parachains = vec![Parachain::AssetHub(Some(
-            "/path/to/ah_runtime.wasm".to_string(),
-        ))];
+        let parachains = vec![Parachain::AssetHub {
+            maybe_override: Some("/path/to/ah_runtime.wasm".to_string()),
+            maybe_bite_at: None,
+            maybe_rpc_endpoint: None,
+        }];
 
         let config = generate_network_config(&relaychain, parachains).unwrap();
         assert_eq!(config.parachains().len(), 1);
@@ -683,6 +905,7 @@ mod test {
                 network: "polkadot".to_string(),
                 runtime_override: None,
                 sync_url: None,
+                bite_at: None,
             },
             parachains: None,
             base_path: None,
@@ -700,22 +923,29 @@ mod test {
                 network: "kusama".to_string(),
                 runtime_override: None,
                 sync_url: None,
+                bite_at: None,
             },
             parachains: Some(vec![
                 ParachainConfig {
                     parachain_type: "asset-hub".to_string(),
                     runtime_override: None,
                     enabled: Some(true),
+                    bite_at: None,
+                    rpc_endpoint: None,
                 },
                 ParachainConfig {
                     parachain_type: "coretime".to_string(),
                     runtime_override: None,
                     enabled: Some(false), // Disabled
+                    bite_at: None,
+                    rpc_endpoint: None,
                 },
                 ParachainConfig {
                     parachain_type: "people".to_string(),
                     runtime_override: None,
                     enabled: None, // Defaults to true
+                    bite_at: None,
+                    rpc_endpoint: None,
                 },
             ]),
             base_path: None,

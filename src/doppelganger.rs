@@ -32,7 +32,9 @@ use zombienet_provider::NativeProvider;
 use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
-use crate::utils::{get_random_port, localize_config, para_head_key, HeadData};
+use crate::utils::{
+    get_header_from_block, get_random_port, localize_config, para_head_key, HeadData,
+};
 
 use crate::config::{get_state_pruning_config, Context, Parachain, Relaychain, Step};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
@@ -88,6 +90,21 @@ pub async fn doppelganger_inner(
             generate_default_overrides_for_para(&base_dir_str, para, &relay_chain).await;
         let info_path = format!("{base_dir_str}/para-{}.txt", para.id());
 
+        let maybe_target_header_path = if let Some(at_block) = para.at_block() {
+            let para_rpc = para
+                .rpc_endpoint()
+                .expect("rpc for parachain should be set. qed");
+            let header = get_header_from_block(at_block, para_rpc).await?;
+
+            let target_header_path = format!("{base_dir_str}/para-header.json");
+            fs::write(&target_header_path, serde_json::to_string_pretty(&header)?)
+                .await
+                .expect("create target head json should works");
+            Some(target_header_path)
+        } else {
+            None
+        };
+
         syncs.push(
             sync_para(
                 ns.clone(),
@@ -97,6 +114,7 @@ pub async fn doppelganger_inner(
                 relay_chain.sync_endpoint(),
                 para_default_overrides_path,
                 info_path,
+                maybe_target_header_path,
             )
             .boxed(),
         );
@@ -174,6 +192,19 @@ pub async fn doppelganger_inner(
         generate_default_overrides_for_rc(&base_dir_str, &relay_chain, &paras_to).await;
     let rc_info_path = format!("{base_dir_str}/rc_info.txt");
     // RELAYCHAIN sync
+
+    let maybe_target_header_path = if let Some(at_block) = relay_chain.at_block() {
+        let header = get_header_from_block(at_block, &relay_chain.rpc_endpoint()).await?;
+
+        let target_header_path = format!("{base_dir_str}/rc-header.json");
+        fs::write(&target_header_path, serde_json::to_string_pretty(&header)?)
+            .await
+            .expect("create target head json should works");
+        Some(target_header_path)
+    } else {
+        None
+    };
+
     let (sync_node, sync_db_path, sync_chain) = sync_relay_only(
         ns.clone(),
         "doppelganger",
@@ -181,6 +212,7 @@ pub async fn doppelganger_inner(
         para_heads_env,
         rc_default_overrides_path,
         &rc_info_path,
+        maybe_target_header_path,
     )
     .await
     .unwrap();

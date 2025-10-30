@@ -28,6 +28,9 @@ pub enum Commands {
         /// The resulting network will be running with this runtime.
         #[arg(long = "rc-override", verbatim_doc_comment)]
         relay_runtime: Option<String>,
+        /// If provided we will _bite_ the live network at the supplied block hieght
+        #[arg(long = "rc-bite-at", verbatim_doc_comment)]
+        relay_bite_at: Option<u32>,
         /// If provided we will override the runtime as part of the process of 'bite'
         /// The resulting version of AH will be running with this runtime.
         #[arg(long = "ah-override", verbatim_doc_comment)]
@@ -35,6 +38,9 @@ pub enum Commands {
         /// Parachains to include: asset-hub, coretime, people, bridge-hub (comma-separated)
         #[arg(long, short = 'p', value_delimiter = ',', verbatim_doc_comment)]
         parachains: Option<Vec<String>>,
+        /// If provided we will _bite_ the live network at the supplied block hieght
+        #[arg(long = "ah-bite-at", verbatim_doc_comment)]
+        ah_bite_at: Option<u32>,
         /// Base path to use. if not provided we will check the env 'ZOMBIE_BITE_BASE_PATH' and if not present we will use `<cwd>_timestamp`
         #[arg(long, short = 'd', verbatim_doc_comment)]
         base_path: Option<String>,
@@ -137,7 +143,9 @@ pub fn resolve_bite_config(
     config_path: Option<String>,
     relay: String,
     relay_runtime: Option<String>,
+    relay_bite_at: Option<u32>,
     ah_runtime: Option<String>,
+    ah_bite_at: Option<u32>,
     parachains: Option<Vec<String>>,
     base_path: Option<String>,
     rc_sync_url: Option<String>,
@@ -151,9 +159,10 @@ pub fn resolve_bite_config(
     };
 
     // Resolve relaychain (CLI overrides config file)
-    let relaychain = if relay_runtime.is_some() || rc_sync_url.is_some() {
+    let relaychain = if relay_runtime.is_some() || rc_sync_url.is_some() || relay_bite_at.is_some()
+    {
         // CLI args provided, use them
-        Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url)
+        Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url, relay_bite_at)
     } else if let Some(ref config) = config_file {
         // Use config file settings, but override network if CLI specifies it
         let network = if relay != "polkadot" {
@@ -165,10 +174,11 @@ pub fn resolve_bite_config(
             network,
             config.relaychain.runtime_override.clone(),
             config.relaychain.sync_url.clone(),
+            config.relaychain.bite_at,
         )
     } else {
         // No config file, use CLI values
-        Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url)
+        Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url, relay_bite_at)
     };
 
     // Resolve parachains (CLI overrides config file)
@@ -177,28 +187,54 @@ pub fn resolve_bite_config(
         cli_paras
             .iter()
             .filter_map(|p| match p.as_str() {
-                "asset-hub" => Some(Parachain::AssetHub(ah_runtime.clone())),
-                "coretime" => Some(Parachain::Coretime(None)),
-                "people" => Some(Parachain::People(None)),
-                "bridge-hub" => Some(Parachain::BridgeHub(None)),
+                "asset-hub" => Some(Parachain::AssetHub {
+                    maybe_override: ah_runtime.clone(),
+                    maybe_bite_at: ah_bite_at,
+                    maybe_rpc_endpoint: None,
+                }),
+                "coretime" => Some(Parachain::Coretime {
+                    maybe_override: None,
+                    maybe_bite_at: None,
+                    maybe_rpc_endpoint: None,
+                }),
+                "people" => Some(Parachain::People {
+                    maybe_override: None,
+                    maybe_bite_at: None,
+                    maybe_rpc_endpoint: None,
+                }),
+                "bridge-hub" => Some(Parachain::BridgeHub {
+                    maybe_override: None,
+                    maybe_bite_at: None,
+                    maybe_rpc_endpoint: None,
+                }),
                 _ => None,
             })
             .collect()
     } else if let Some(ref config) = config_file {
-        // Use config file parachains but apply ah_runtime override if specified
+        // Use config file parachains but apply ah_runtime and ah_bite_at override if specified
         config
             .get_parachains()
             .iter()
             .map(|p| match p {
-                Parachain::AssetHub(_) if ah_runtime.is_some() => {
-                    Parachain::AssetHub(ah_runtime.clone())
-                }
+                Parachain::AssetHub {
+                    maybe_rpc_endpoint, ..
+                } if ah_runtime.is_some() || ah_bite_at.is_some() => Parachain::AssetHub {
+                    maybe_override: ah_runtime
+                        .clone()
+                        .or_else(|| p.wasm_overrides().map(|s| s.to_string())),
+                    maybe_bite_at: ah_bite_at.or(p.at_block()),
+                    maybe_rpc_endpoint: maybe_rpc_endpoint.clone(),
+                },
                 _ => p.clone(),
             })
             .collect()
     } else {
         // Default to just asset-hub for backward compatibility
-        vec![Parachain::AssetHub(ah_runtime)]
+        vec![Parachain::AssetHub {
+            maybe_override: ah_runtime,
+            maybe_bite_at: ah_bite_at,
+            maybe_rpc_endpoint: None,
+        }]
     };
 
     // Resolve base_path (CLI overrides config file)
