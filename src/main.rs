@@ -17,8 +17,8 @@ mod overrides;
 mod sync;
 mod utils;
 
-use cli::{get_base_path, Args, Commands};
-use config::{Parachain, Relaychain};
+use cli::{get_base_path, Args, Commands, resolve_bite_config, resolve_spawn_config};
+use config::{Relaychain};
 use doppelganger::doppelganger_inner;
 use monit::monit_progress;
 use tokio::fs;
@@ -120,6 +120,7 @@ async fn tear_down_and_generate(
 
     Ok(())
 }
+
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt()
@@ -133,27 +134,42 @@ async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
     match args.cmd {
         Commands::Bite {
+            config,
             relay,
             relay_runtime,
             ah_runtime,
+            parachains,
             base_path,
             rc_sync_url,
             and_spawn,
         } => {
-            let relaychain = Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url);
-            debug!("{:?}", relaychain);
-            let base_path = get_base_path(base_path);
-            let ah = Parachain::AssetHub(ah_runtime);
-            let _ = doppelganger_inner(base_path.clone(), relaychain, vec![ah])
-                .await
-                .expect("bite should work");
-            if and_spawn {
+            let resolved_config = resolve_bite_config(
+                config,
+                relay,
+                relay_runtime,
+                ah_runtime,
+                parachains,
+                base_path,
+                rc_sync_url,
+                and_spawn,
+            )?;
+
+            debug!("{:?}", resolved_config.relaychain);
+            let _ = doppelganger_inner(
+                resolved_config.base_path.clone(),
+                resolved_config.relaychain,
+                resolved_config.parachains,
+            )
+            .await
+            .expect("bite should work");
+
+            if resolved_config.and_spawn {
                 let step = Step::Spawn;
                 // STOP file
-                let stop_file = format!("{}/{STOP_FILE}", base_path.to_string_lossy());
+                let stop_file = format!("{}/{STOP_FILE}", resolved_config.base_path.to_string_lossy());
 
-                resolve_if_dir_exist(&base_path, step).await;
-                let network = doppelganger::spawn(step, base_path.as_path(), None, None)
+                resolve_if_dir_exist(&resolved_config.base_path, step).await;
+                let network = doppelganger::spawn(step, resolved_config.base_path.as_path(), None, None)
                     .await
                     .expect("spawn should works");
 
@@ -161,17 +177,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
                 post_spawn_loop(&stop_file, &network, true).await?;
 
-                tear_down_and_generate(&stop_file, step, network, base_path).await?;
+                tear_down_and_generate(&stop_file, step, network, resolved_config.base_path).await?;
             }
         }
         Commands::Spawn {
+            config,
             base_path,
             with_monitor,
             step,
         } => {
+            let resolved_config = resolve_spawn_config(config, base_path, with_monitor)?;
             let step: Step = step.into();
-            let base_path = get_base_path(base_path);
-            let base_path_str = base_path.to_string_lossy();
+            let base_path_str = resolved_config.base_path.to_string_lossy();
 
             if !fs::try_exists(format!("{base_path_str}/{}", step.dir_from()))
                 .await
@@ -184,9 +201,9 @@ async fn main() -> Result<(), anyhow::Error> {
                 std::process::exit(1);
             }
 
-            resolve_if_dir_exist(&base_path, step).await;
+            resolve_if_dir_exist(&resolved_config.base_path, step).await;
 
-            let network = doppelganger::spawn(step, base_path.as_path(), None, None)
+            let network = doppelganger::spawn(step, resolved_config.base_path.as_path(), None, None)
                 .await
                 .expect("spawn should works");
 
@@ -195,9 +212,9 @@ async fn main() -> Result<(), anyhow::Error> {
             // STOP file
             let stop_file = format!("{base_path_str}/{STOP_FILE}");
 
-            post_spawn_loop(&stop_file, &network, with_monitor).await?;
+            post_spawn_loop(&stop_file, &network, resolved_config.with_monitor).await?;
 
-            tear_down_and_generate(&stop_file, step, network, base_path).await?;
+            tear_down_and_generate(&stop_file, step, network, resolved_config.base_path).await?;
         }
         Commands::GenerateArtifacts {
             relay,
