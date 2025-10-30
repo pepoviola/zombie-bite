@@ -35,6 +35,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: deps
+        shell: bash
+        run: |
+          apt-get install protobuf-compiler
+
       - name: Build
         run: SKIP_WASM_BUILD=1 cargo build --release --target ${{ matrix.target }}
 
