@@ -17,8 +17,8 @@ mod overrides;
 mod sync;
 mod utils;
 
-use cli::{get_base_path, Args, Commands, resolve_bite_config, resolve_spawn_config};
-use config::{Relaychain};
+use cli::{get_base_path, resolve_bite_config, resolve_spawn_config, Args, Commands};
+use config::Relaychain;
 use doppelganger::doppelganger_inner;
 use monit::monit_progress;
 use tokio::fs;
@@ -29,7 +29,6 @@ use crate::config::Step;
 const STOP_FILE: &str = "stop.txt";
 
 /// Helpers fns
-
 async fn resolve_if_dir_exist(base_path: &Path, step: Step) {
     let base_path_str = base_path.to_string_lossy();
     let path_to_use = format!("{base_path_str}/{}", step.dir());
@@ -55,7 +54,7 @@ async fn resolve_if_dir_exist(base_path: &Path, step: Step) {
 async fn ensure_startup_producing_blocks(network: &Network<LocalFileSystem>) {
     // first wait until the collator reply the metrics
     let collator = network.get_node("collator").expect("collator should be");
-    let _ = collator
+    collator
         .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
         .await
         .unwrap();
@@ -155,7 +154,7 @@ async fn main() -> Result<(), anyhow::Error> {
             )?;
 
             debug!("{:?}", resolved_config.relaychain);
-            let _ = doppelganger_inner(
+            doppelganger_inner(
                 resolved_config.base_path.clone(),
                 resolved_config.relaychain,
                 resolved_config.parachains,
@@ -166,18 +165,23 @@ async fn main() -> Result<(), anyhow::Error> {
             if resolved_config.and_spawn {
                 let step = Step::Spawn;
                 // STOP file
-                let stop_file = format!("{}/{STOP_FILE}", resolved_config.base_path.to_string_lossy());
+                let stop_file = format!(
+                    "{}/{STOP_FILE}",
+                    resolved_config.base_path.to_string_lossy()
+                );
 
                 resolve_if_dir_exist(&resolved_config.base_path, step).await;
-                let network = doppelganger::spawn(step, resolved_config.base_path.as_path(), None, None)
-                    .await
-                    .expect("spawn should works");
+                let network =
+                    doppelganger::spawn(step, resolved_config.base_path.as_path(), None, None)
+                        .await
+                        .expect("spawn should works");
 
                 ensure_startup_producing_blocks(&network).await;
 
                 post_spawn_loop(&stop_file, &network, true).await?;
 
-                tear_down_and_generate(&stop_file, step, network, resolved_config.base_path).await?;
+                tear_down_and_generate(&stop_file, step, network, resolved_config.base_path)
+                    .await?;
             }
         }
         Commands::Spawn {
@@ -194,7 +198,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 .await
                 .expect("try_exist should wokr")
             {
-                println!("");
                 println!("\t\x1b[91mThe 'bite' dir doesn't exist, please run the bite subcommand first.\x1b[0m");
                 println!("\tHelp: zombie-bite bite --help");
 
@@ -203,9 +206,10 @@ async fn main() -> Result<(), anyhow::Error> {
 
             resolve_if_dir_exist(&resolved_config.base_path, step).await;
 
-            let network = doppelganger::spawn(step, resolved_config.base_path.as_path(), None, None)
-                .await
-                .expect("spawn should works");
+            let network =
+                doppelganger::spawn(step, resolved_config.base_path.as_path(), None, None)
+                    .await
+                    .expect("spawn should works");
 
             ensure_startup_producing_blocks(&network).await;
 

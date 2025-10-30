@@ -153,7 +153,7 @@ pub async fn localize_config(config_path: impl AsRef<str>) -> Result<(), anyhow:
             {
                 let parts: Vec<&str> = l.split("=").collect();
                 let value_as_path = PathBuf::from_str(parts.last().unwrap())
-                    .expect(&format!("value {:?} should be a valid path", parts.last()));
+                    .unwrap_or_else(|_| panic!("value {:?} should be a valid path", parts.last()));
                 let maybe_mod_line = if let Ok(false) = fs::try_exists(&value_as_path).await {
                     // localize!
                     localized = true;
@@ -212,7 +212,7 @@ mod test {
         let config_path = "./testing/config.toml";
         let config_path_bkp = "./testing/config.toml.bkp";
         let _ = fs::copy(&config_path_bkp, config_path).await;
-        let _ = localize_config(config_path).await.unwrap();
+        localize_config(config_path).await.unwrap();
     }
 
     #[tokio::test]
@@ -221,9 +221,9 @@ mod test {
         let config_path = "./testing/config-paseo.toml";
         let config_path_bkp = "./testing/config-paseo.toml.bkp";
         let _ = fs::copy(&config_path_bkp, config_path).await;
-        let _ = localize_config(config_path).await.unwrap();
+        localize_config(config_path).await.unwrap();
         let network_config =
-            zombienet_configuration::NetworkConfig::load_from_toml(&config_path).unwrap();
+            zombienet_configuration::NetworkConfig::load_from_toml(config_path).unwrap();
         let alice_db = network_config
             .relaychain()
             .nodes()

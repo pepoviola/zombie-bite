@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::{Parser, Subcommand};
 use std::str::FromStr;
 
-use crate::config::{ZombieBiteConfig, Parachain, Relaychain};
+use crate::config::{Parachain, Relaychain, ZombieBiteConfig};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -91,37 +91,30 @@ pub enum Commands {
 /// base_path can be set from env with 'ZOMBIE_BITE_BASE_PATH'
 /// or using the cli argument (take precedence).
 /// And if not set we fallback to defaul `cwd_timestamp`
-
 pub fn get_base_path(cli_base_path: Option<String>) -> PathBuf {
     let global_base_path = if let Some(base_path) = cli_base_path {
         PathBuf::from_str(&base_path).expect("Base path in cli args should be valid")
+    } else if let Ok(base_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
+        PathBuf::from_str(&base_path)
+            .expect("Base path in env 'ZOMBIE_BITE_BASE_PATH' should be valid")
     } else {
-        if let Ok(base_path) = env::var("ZOMBIE_BITE_BASE_PATH") {
-            PathBuf::from_str(&base_path)
-                .expect("Base path in env 'ZOMBIE_BITE_BASE_PATH' should be valid")
-        } else {
-            // fallback
-            let path = env::current_dir().expect("cwd should be valid");
-            let now = SystemTime::now();
-            let duration_since_epoch = now
-                .duration_since(UNIX_EPOCH)
-                .expect("Epoch ts show be valid");
-            let fallback = format!(
-                "{}_{}",
-                path.to_string_lossy(),
-                duration_since_epoch.as_secs()
-            );
-            PathBuf::from_str(&fallback).expect("Base path form fallback should be valid")
-        }
+        // fallback
+        let path = env::current_dir().expect("cwd should be valid");
+        let now = SystemTime::now();
+        let duration_since_epoch = now
+            .duration_since(UNIX_EPOCH)
+            .expect("Epoch ts show be valid");
+        let fallback = format!(
+            "{}_{}",
+            path.to_string_lossy(),
+            duration_since_epoch.as_secs()
+        );
+        PathBuf::from_str(&fallback).expect("Base path form fallback should be valid")
     };
-    
+
     match global_base_path.canonicalize() {
-        Ok(canonical_path) => {
-            canonical_path
-        },
-        Err(_) => {
-            global_base_path
-        }
+        Ok(canonical_path) => canonical_path,
+        Err(_) => global_base_path,
     }
 }
 
@@ -139,6 +132,7 @@ pub struct ResolvedSpawnConfig {
     pub with_monitor: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn resolve_bite_config(
     config_path: Option<String>,
     relay: String,
@@ -162,7 +156,11 @@ pub fn resolve_bite_config(
         Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url)
     } else if let Some(ref config) = config_file {
         // Use config file settings, but override network if CLI specifies it
-        let network = if relay != "polkadot" { &relay } else { &config.relaychain.network };
+        let network = if relay != "polkadot" {
+            &relay
+        } else {
+            &config.relaychain.network
+        };
         Relaychain::new_with_values(
             network,
             config.relaychain.runtime_override.clone(),
@@ -176,24 +174,28 @@ pub fn resolve_bite_config(
     // Resolve parachains (CLI overrides config file)
     let resolved_parachains = if let Some(cli_paras) = parachains {
         // CLI specified parachains
-        cli_paras.iter().filter_map(|p| {
-            match p.as_str() {
+        cli_paras
+            .iter()
+            .filter_map(|p| match p.as_str() {
                 "asset-hub" => Some(Parachain::AssetHub(ah_runtime.clone())),
                 "coretime" => Some(Parachain::Coretime(None)),
                 "people" => Some(Parachain::People(None)),
                 "bridge-hub" => Some(Parachain::BridgeHub(None)),
                 _ => None,
-            }
-        }).collect()
+            })
+            .collect()
     } else if let Some(ref config) = config_file {
         // Use config file parachains but apply ah_runtime override if specified
-        config.get_parachains().iter().map(|p| {
-            match p {
-                Parachain::AssetHub(_) if ah_runtime.is_some() => 
-                    Parachain::AssetHub(ah_runtime.clone()),
+        config
+            .get_parachains()
+            .iter()
+            .map(|p| match p {
+                Parachain::AssetHub(_) if ah_runtime.is_some() => {
+                    Parachain::AssetHub(ah_runtime.clone())
+                }
                 _ => p.clone(),
-            }
-        }).collect()
+            })
+            .collect()
     } else {
         // Default to just asset-hub for backward compatibility
         vec![Parachain::AssetHub(ah_runtime)]

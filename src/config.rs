@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 // TODO: don't allow dead_code
 
-use std::env;
 use serde::{Deserialize, Serialize};
+use std::env;
 
 use zombienet_configuration::{NetworkConfig, NetworkConfigBuilder};
 const BITE: &str = "bite";
@@ -271,7 +271,10 @@ impl Parachain {
 
     pub fn wasm_overrides(&self) -> Option<&str> {
         match self {
-            Parachain::AssetHub(x) | Parachain::Coretime(x) | Parachain::People(x) | Parachain::BridgeHub(x) => x.as_deref(),
+            Parachain::AssetHub(x)
+            | Parachain::Coretime(x)
+            | Parachain::People(x)
+            | Parachain::BridgeHub(x) => x.as_deref(),
         }
     }
 }
@@ -430,16 +433,10 @@ impl ZombieBiteConfig {
     pub fn get_parachains(&self) -> Vec<Parachain> {
         self.parachains
             .as_ref()
-            .map(|paras| {
-                paras
-                    .iter()
-                    .filter_map(|p| p.to_parachain())
-                    .collect()
-            })
+            .map(|paras| paras.iter().filter_map(|p| p.to_parachain()).collect())
             .unwrap_or_default()
     }
 }
-
 
 #[cfg(test)]
 mod test {
@@ -472,7 +469,7 @@ mod test {
 
         println!("{:#?}", spec);
     }
-    
+
     #[test]
     fn parachain_config_enabled_defaults_to_true() {
         let config = ParachainConfig {
@@ -480,10 +477,10 @@ mod test {
             runtime_override: None,
             enabled: None, // Not specified
         };
-        
+
         assert!(config.to_parachain().is_some());
         match config.to_parachain().unwrap() {
-            Parachain::AssetHub(_) => {},
+            Parachain::AssetHub(_) => {}
             _ => panic!("Expected AssetHub parachain"),
         }
     }
@@ -495,10 +492,10 @@ mod test {
             runtime_override: None,
             enabled: Some(true),
         };
-        
+
         assert!(config.to_parachain().is_some());
         match config.to_parachain().unwrap() {
-            Parachain::Coretime(_) => {},
+            Parachain::Coretime(_) => {}
             _ => panic!("Expected Coretime parachain"),
         }
     }
@@ -510,7 +507,7 @@ mod test {
             runtime_override: None,
             enabled: Some(false),
         };
-        
+
         assert!(config.to_parachain().is_none());
     }
 
@@ -522,7 +519,7 @@ mod test {
             runtime_override: Some(override_path.clone()),
             enabled: Some(true),
         };
-        
+
         let parachain = config.to_parachain().unwrap();
         match parachain {
             Parachain::BridgeHub(Some(path)) => assert_eq!(path, override_path),
@@ -537,22 +534,26 @@ mod test {
             runtime_override: None,
             enabled: Some(true),
         };
-        
+
         assert!(config.to_parachain().is_none());
     }
 
     #[test]
     fn all_parachain_types_supported() {
         let types = vec!["asset-hub", "coretime", "people", "bridge-hub"];
-        
+
         for parachain_type in types {
             let config = ParachainConfig {
                 parachain_type: parachain_type.to_string(),
                 runtime_override: None,
                 enabled: Some(true),
             };
-            
-            assert!(config.to_parachain().is_some(), "Failed for type: {}", parachain_type);
+
+            assert!(
+                config.to_parachain().is_some(),
+                "Failed for type: {}",
+                parachain_type
+            );
         }
     }
 
@@ -567,34 +568,58 @@ mod test {
     #[test]
     fn parachain_chain_strings() {
         let relay = "polkadot";
-        
-        assert_eq!(Parachain::AssetHub(None).as_chain_string(relay), "asset-hub-polkadot");
-        assert_eq!(Parachain::Coretime(None).as_chain_string(relay), "coretime-polkadot");
-        assert_eq!(Parachain::People(None).as_chain_string(relay), "people-polkadot");
-        assert_eq!(Parachain::BridgeHub(None).as_chain_string(relay), "bridge-hub-polkadot");
+
+        assert_eq!(
+            Parachain::AssetHub(None).as_chain_string(relay),
+            "asset-hub-polkadot"
+        );
+        assert_eq!(
+            Parachain::Coretime(None).as_chain_string(relay),
+            "coretime-polkadot"
+        );
+        assert_eq!(
+            Parachain::People(None).as_chain_string(relay),
+            "people-polkadot"
+        );
+        assert_eq!(
+            Parachain::BridgeHub(None).as_chain_string(relay),
+            "bridge-hub-polkadot"
+        );
     }
 
     #[test]
     fn parachain_local_chain_strings() {
         let relay = "kusama";
-        
-        assert_eq!(Parachain::AssetHub(None).as_local_chain_string(relay), "asset-hub-kusama-local");
-        assert_eq!(Parachain::Coretime(None).as_local_chain_string(relay), "coretime-kusama-local");
-        assert_eq!(Parachain::People(None).as_local_chain_string(relay), "people-kusama-local");
-        assert_eq!(Parachain::BridgeHub(None).as_local_chain_string(relay), "bridge-hub-kusama-local");
+
+        assert_eq!(
+            Parachain::AssetHub(None).as_local_chain_string(relay),
+            "asset-hub-kusama-local"
+        );
+        assert_eq!(
+            Parachain::Coretime(None).as_local_chain_string(relay),
+            "coretime-kusama-local"
+        );
+        assert_eq!(
+            Parachain::People(None).as_local_chain_string(relay),
+            "people-kusama-local"
+        );
+        assert_eq!(
+            Parachain::BridgeHub(None).as_local_chain_string(relay),
+            "bridge-hub-kusama-local"
+        );
     }
 
     #[test]
     fn relaychain_creation() {
         let polkadot = Relaychain::new("polkadot");
         assert_eq!(polkadot.as_chain_string(), "polkadot");
-        
+
         let kusama = Relaychain::new("kusama");
         assert_eq!(kusama.as_chain_string(), "kusama");
-        
+
         let paseo = Relaychain::new("paseo");
         assert_eq!(paseo.as_chain_string(), "paseo");
-        
+
         // Unknown defaults to polkadot
         let unknown = Relaychain::new("unknown");
         assert_eq!(unknown.as_chain_string(), "polkadot");
@@ -604,9 +629,10 @@ mod test {
     fn relaychain_with_overrides() {
         let runtime_path = Some("/path/to/runtime.wasm".to_string());
         let sync_url = Some("wss://custom-rpc.example.com".to_string());
-        
-        let relaychain = Relaychain::new_with_values("kusama", runtime_path.clone(), sync_url.clone());
-        
+
+        let relaychain =
+            Relaychain::new_with_values("kusama", runtime_path.clone(), sync_url.clone());
+
         assert_eq!(relaychain.wasm_overrides(), runtime_path.as_deref());
         match relaychain {
             Relaychain::Kusama { maybe_sync_url, .. } => assert_eq!(maybe_sync_url, sync_url),
@@ -630,7 +656,7 @@ mod test {
             Parachain::People(None),
             Parachain::BridgeHub(None),
         ];
-        
+
         let config = generate_network_config(&relaychain, parachains).unwrap();
         assert_eq!(config.parachains().len(), 4);
     }
@@ -642,10 +668,10 @@ mod test {
             Some("/path/to/relay_runtime.wasm".to_string()),
             None,
         );
-        let parachains = vec![
-            Parachain::AssetHub(Some("/path/to/ah_runtime.wasm".to_string())),
-        ];
-        
+        let parachains = vec![Parachain::AssetHub(Some(
+            "/path/to/ah_runtime.wasm".to_string(),
+        ))];
+
         let config = generate_network_config(&relaychain, parachains).unwrap();
         assert_eq!(config.parachains().len(), 1);
     }
@@ -663,7 +689,7 @@ mod test {
             and_spawn: None,
             with_monitor: None,
         };
-        
+
         assert_eq!(config.get_parachains().len(), 0);
     }
 
@@ -696,10 +722,10 @@ mod test {
             and_spawn: None,
             with_monitor: None,
         };
-        
+
         let parachains = config.get_parachains();
         assert_eq!(parachains.len(), 2); // Only asset-hub and people should be enabled
-        
+
         // Check that the right parachains are included
         let para_ids: Vec<u32> = parachains.iter().map(|p| p.id()).collect();
         assert!(para_ids.contains(&1000)); // asset-hub
@@ -761,15 +787,18 @@ mod test {
             type = "coretime"
             enabled = false
         "#;
-        
+
         let config: ZombieBiteConfig = toml::from_str(toml_content).unwrap();
-        
+
         assert_eq!(config.relaychain.network, "kusama");
-        assert_eq!(config.relaychain.runtime_override, Some("/path/to/runtime.wasm".to_string()));
+        assert_eq!(
+            config.relaychain.runtime_override,
+            Some("/path/to/runtime.wasm".to_string())
+        );
         assert_eq!(config.base_path, Some("/custom/path".to_string()));
         assert_eq!(config.and_spawn, Some(true));
         assert_eq!(config.with_monitor, Some(false));
-        
+
         let parachains = config.get_parachains();
         assert_eq!(parachains.len(), 1); // Only asset-hub enabled
         assert_eq!(parachains[0].id(), 1000); // asset-hub ID
@@ -781,16 +810,16 @@ mod test {
 [relaychain]
 network = "polkadot"
         "#;
-        
+
         let config: ZombieBiteConfig = toml::from_str(toml_content).unwrap();
-        
+
         assert_eq!(config.relaychain.network, "polkadot");
         assert_eq!(config.relaychain.runtime_override, None);
         assert_eq!(config.parachains, None);
         assert_eq!(config.base_path, None);
         assert_eq!(config.and_spawn, None);
         assert_eq!(config.with_monitor, None);
-        
+
         let parachains = config.get_parachains();
         assert_eq!(parachains.len(), 0); // No parachains specified
     }

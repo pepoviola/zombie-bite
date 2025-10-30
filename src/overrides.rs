@@ -81,20 +81,18 @@ pub async fn generate_default_overrides_for_rc(
     }
 
     if let Some(override_wasm) = relay.wasm_overrides() {
-        let wasm_content = fs::read(override_wasm).await.expect(&format!(
-            "Error reading override_wasm from path {}",
-            override_wasm
-        ));
+        let wasm_content = fs::read(override_wasm)
+            .await
+            .unwrap_or_else(|_| panic!("Error reading override_wasm from path {}", override_wasm));
         overrides["3a636f6465"] = Value::String(hex::encode(wasm_content));
     }
 
     // also check if any parachain includes a wasm override
     for para in paras {
         if let Some(override_wasm) = para.wasm_overrides() {
-            let wasm_content = fs::read(override_wasm).await.expect(&format!(
-                "Error reading override_wasm from path {}",
-                override_wasm
-            ));
+            let wasm_content = fs::read(override_wasm).await.unwrap_or_else(|_| {
+                panic!("Error reading override_wasm from path {}", override_wasm)
+            });
             let code_hash = hex::encode(subhasher::blake2_256(&wasm_content[..]));
 
             // we should now override
@@ -184,10 +182,9 @@ pub async fn generate_default_overrides_for_para(
     });
 
     if let Some(override_wasm) = para.wasm_overrides() {
-        let wasm_content = fs::read(override_wasm).await.expect(&format!(
-            "Error reading override_wasm from path {}",
-            override_wasm
-        ));
+        let wasm_content = fs::read(override_wasm)
+            .await
+            .unwrap_or_else(|_| panic!("Error reading override_wasm from path {}", override_wasm));
         overrides["3a636f6465"] = Value::String(hex::encode(wasm_content));
     }
 
