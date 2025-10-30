@@ -39,7 +39,7 @@ jobs:
       - name: deps
         shell: bash
         run: |
-          apt-get install protobuf-compiler
+          sudo apt-get install protobuf-compiler
 
       - name: Build
         run:  cargo build
