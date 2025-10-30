@@ -836,7 +836,9 @@ mod test {
             .await
             .unwrap();
         println!("{:?}", n);
-        loop {tokio::time::sleep(std::time::Duration::from_secs(5)).await;}
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
     }
 
     #[tokio::test]
