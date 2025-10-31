@@ -32,7 +32,9 @@ use zombienet_provider::NativeProvider;
 use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
-use crate::utils::{get_random_port, localize_config, para_head_key, HeadData, get_header_from_block};
+use crate::utils::{
+    get_header_from_block, get_random_port, localize_config, para_head_key, HeadData,
+};
 
 use crate::config::{get_state_pruning_config, Context, Parachain, Relaychain, Step};
 use crate::overrides::{generate_default_overrides_for_para, generate_default_overrides_for_rc};
@@ -89,13 +91,15 @@ pub async fn doppelganger_inner(
         let info_path = format!("{base_dir_str}/para-{}.txt", para.id());
 
         let maybe_target_header_path = if let Some(at_block) = para.at_block() {
-            let para_rpc = para.rpc_endpoint().expect("rpc for parachain should be set. qed");
+            let para_rpc = para
+                .rpc_endpoint()
+                .expect("rpc for parachain should be set. qed");
             let header = get_header_from_block(at_block, para_rpc).await?;
 
             let target_header_path = format!("{base_dir_str}/para-header.json");
             fs::write(&target_header_path, serde_json::to_string_pretty(&header)?)
-            .await
-            .expect("create target head json should works");
+                .await
+                .expect("create target head json should works");
             Some(target_header_path)
         } else {
             None
@@ -110,7 +114,7 @@ pub async fn doppelganger_inner(
                 relay_chain.sync_endpoint(),
                 para_default_overrides_path,
                 info_path,
-                maybe_target_header_path
+                maybe_target_header_path,
             )
             .boxed(),
         );
@@ -128,7 +132,7 @@ pub async fn doppelganger_inner(
         let sync_chain_name = if sync_chain.contains('/') {
             let parts: Vec<&str> = sync_chain.split('/').collect();
             let name_parts: Vec<&str> = parts.last().unwrap().split('.').collect();
-            name_parts.get(0).unwrap().to_string()
+            name_parts.first().unwrap().to_string()
         } else {
             // is not a file
             sync_chain.clone()
@@ -149,9 +153,8 @@ pub async fn doppelganger_inner(
         trace!("snap_path: {snap_path}");
         generate_snap(&sync_db_path, &snap_path).await.unwrap();
 
-        let para_head_str = read_to_string(&sync_head_path).expect(&format!(
-            "read para_head ({sync_head_path}) file should works."
-        ));
+        let para_head_str = read_to_string(&sync_head_path)
+            .unwrap_or_else(|_| panic!("read para_head ({sync_head_path}) file should works."));
         let para_head_hex = if &para_head_str[..2] == "0x" {
             &para_head_str[2..]
         } else {
@@ -169,7 +172,7 @@ pub async fn doppelganger_inner(
             .expect("para_index should be valid. qed");
         para_heads_env.push((
             format!("ZOMBIE_{}", &para_head_key(para.id())[2..]),
-            format!("{}", &para_head[2..]),
+            para_head[2..].to_string(),
         ));
 
         para_artifacts.push(ChainArtifact {
@@ -195,8 +198,8 @@ pub async fn doppelganger_inner(
 
         let target_header_path = format!("{base_dir_str}/rc-header.json");
         fs::write(&target_header_path, serde_json::to_string_pretty(&header)?)
-        .await
-        .expect("create target head json should works");
+            .await
+            .expect("create target head json should works");
         Some(target_header_path)
     } else {
         None
@@ -209,7 +212,7 @@ pub async fn doppelganger_inner(
         para_heads_env,
         rc_default_overrides_path,
         &rc_info_path,
-        maybe_target_header_path
+        maybe_target_header_path,
     )
     .await
     .unwrap();
@@ -473,7 +476,7 @@ pub async fn clean_up_dir_for_step(
         info!("mv {from} {to}");
         fs::rename(&from, &to)
             .await
-            .expect(&format!("copy from {from} to {to} should works"));
+            .unwrap_or_else(|_| panic!("copy from {from} to {to} should works"));
     }
 
     Ok(())
@@ -547,11 +550,11 @@ async fn generate_config(
     // config a new network with alice/bob
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
         let mut default_args = vec![
-                ("-l", leaked_rust_log.as_str()).into(),
-                "--discover-local".into(),
-                "--allow-private-ip".into(),
-                "--no-hardware-benchmarks".into(),
-                ("--state-pruning", get_state_pruning_config().as_str()).into(),
+            ("-l", leaked_rust_log.as_str()).into(),
+            "--discover-local".into(),
+            "--allow-private-ip".into(),
+            "--no-hardware-benchmarks".into(),
+            ("--state-pruning", get_state_pruning_config().as_str()).into(),
         ];
 
         if let Ok(extra_args) = env::var("ZOMBIE_BITE_RC_EXTRA_ARGS") {
@@ -565,7 +568,7 @@ async fn generate_config(
             .with_default_command(relaychain.cmd.as_str())
             .with_chain_spec_path(chain_spec_path)
             .with_default_db_snapshot(db_path)
-            .with_default_args( default_args);
+            .with_default_args(default_args);
 
         // We override the code directly in the db
         // relay_builder = if let Some(override_path) = relaychain.override_wasm {
@@ -629,7 +632,6 @@ async fn generate_config(
                 get_random_port().await
             };
 
-
             let mut para_default_args = vec![
                 (
                     "--relay-chain-rpc-urls",
@@ -670,7 +672,7 @@ async fn generate_config(
     let config = if let Some(global_base_dir) = &global_base_dir {
         let fixed_base_dir = global_base_dir.canonicalize().unwrap().join("spawn");
         config.with_global_settings(|global_settings| {
-            global_settings.with_base_dir(&fixed_base_dir.to_string_lossy().to_string())
+            global_settings.with_base_dir(fixed_base_dir.to_string_lossy().to_string())
         })
     } else {
         config
@@ -866,27 +868,31 @@ mod test {
             .await
             .unwrap();
         println!("{:?}", n);
-        loop {}
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
     }
 
     #[tokio::test]
     async fn test_generate_config() {
-
-        std::env::set_var("ZOMBIE_BITE_AH_EXTRA_ARGS", "--db-cache=24000, --trie-cache-size=24000, --runtime-cache-size=255");
+        std::env::set_var(
+            "ZOMBIE_BITE_AH_EXTRA_ARGS",
+            "--db-cache=24000, --trie-cache-size=24000, --runtime-cache-size=255",
+        );
 
         let relay = ChainArtifact {
             cmd: "doppelganger".into(),
             chain: "polkadot".into(),
             spec_path: "/home/ubuntu/something.json".into(),
             snap_path: "/home/ubuntu/something.tgz".into(),
-            override_wasm: None
+            override_wasm: None,
         };
         let ah = ChainArtifact {
             cmd: "doppelganger-parachain".into(),
             chain: "ah-polkadot".into(),
             spec_path: "/home/ubuntu/something-ah.json".into(),
             snap_path: "/home/ubuntu/something-ah.tgz".into(),
-            override_wasm: None
+            override_wasm: None,
         };
 
         let network_config = generate_config(relay, vec![ah], None).await.unwrap();
