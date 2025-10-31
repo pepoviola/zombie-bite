@@ -342,9 +342,9 @@ impl Parachain {
         match self {
             Parachain::AssetHub { .. } => 1000,
             Parachain::Coretime { .. } => 1005,
-            Parachain::People { .. } => 1001,
+            Parachain::People { .. } => 1004,
             Parachain::BridgeHub { .. } => 1002,
-            Parachain::Collectives { .. } => 1001,  // TODO: fix this
+            Parachain::Collectives { .. } => 1001,
         }
     }
 
