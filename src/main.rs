@@ -53,12 +53,14 @@ async fn resolve_if_dir_exist(base_path: &Path, step: Step) {
 }
 
 async fn ensure_startup_producing_blocks(network: &Network<LocalFileSystem>) {
-    // first wait until the collator reply the metrics
-    let collator = network.get_node("collator").expect("collator should be");
+    // first wait until the collator reply the metrics if we deploy one
+    if let Ok(collator) = network.get_node("collator") {
+    // let collator = network.get_node("collator").expect("collator should be");
     let _ = collator
         .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
         .await
         .unwrap();
+    }
 
     // ensure block production
     let client = network
@@ -84,7 +86,12 @@ async fn post_spawn_loop(
     if with_monitor {
         let alice = network.get_node("alice")?;
         let bob = network.get_node("bob")?;
-        let collator = network.get_node("collator")?;
+        let collator = if let Ok(collator) = network.get_node("collator") {
+            Some(collator)
+        } else {
+            None
+        };
+        // let collator = network.get_node("collator")?;
         monit_progress(alice, bob, collator, Some(stop_file)).await;
     } else {
         while let Ok(false) = fs::try_exists(&stop_file).await {
@@ -183,7 +190,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             if !fs::try_exists(format!("{base_path_str}/{}", step.dir_from()))
                 .await
-                .expect("try_exist should wokr")
+                .expect("try_exist should work")
             {
                 println!("");
                 println!("\t\x1b[91mThe 'bite' dir doesn't exist, please run the bite subcommand first.\x1b[0m");

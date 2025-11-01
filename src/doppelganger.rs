@@ -707,6 +707,8 @@ pub async fn spawn(
 
     let config_file = format!("{}/config.toml", config_dir.to_string_lossy());
 
+    println!("config_dir {:?}", config_dir);
+
     // localize if needed (change the content if needed)
     localize_config(&config_file).await?;
     info!("spawning from {config_file}");
@@ -715,8 +717,10 @@ pub async fn spawn(
     let base_dir = format!("{}/{}", base_path.to_string_lossy(), step.dir());
     let global_settings = zombienet_configuration::GlobalSettingsBuilder::new()
         .with_base_dir(&base_dir)
+        .with_tear_down_on_failure(false)
         .build()
         .expect("global settings should work");
+
 
     let network_config = zombienet_configuration::NetworkConfig::load_from_toml_with_settings(
         &config_file,

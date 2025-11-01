@@ -40,15 +40,24 @@ async fn progress(node: &NetworkNode, checkpoint: impl Into<f64>) -> Result<f64,
 pub async fn monit_progress(
     alice: &NetworkNode,
     bob: &NetworkNode,
-    collator: &NetworkNode,
+    collator: Option<&NetworkNode>,
     stop_file: Option<&str>,
 ) {
     // monitoring block production every 15 mins
     let mut alice_block = progress(alice, 0).await.expect("first check should works");
     let mut bob_block = progress(bob, 0).await.expect("first check should works");
-    let mut collator_block = progress(collator, 0)
+
+    let mut collator_block = if let Some(collator) = collator {
+        progress(collator, 0)
         .await
-        .expect("first check should works");
+        .expect("first check should works")
+    } else {
+        -1_f64
+    };
+
+    // let mut collator_block = progress(collator, 0)
+    //     .await
+    //     .expect("first check should works");
 
     let mut check_progress = async || {
         // check the progress
@@ -59,7 +68,9 @@ pub async fn monit_progress(
         } else {
             // restart alice / collator
             restart(alice, alice_block).await;
-            restart(collator, collator_block).await;
+            if let Some(collator) = collator {
+                restart(collator, collator_block).await;
+            }
             alice_was_restarted = true;
         }
 
@@ -72,11 +83,13 @@ pub async fn monit_progress(
         }
 
         if !alice_was_restarted {
-            if let Ok(block) = progress(collator, collator_block).await {
-                collator_block = block;
-            } else {
-                // restart alice / collator
-                restart(collator, collator_block).await;
+            if let Some(collator) = collator {
+                if let Ok(block) = progress(collator, collator_block).await {
+                    collator_block = block;
+                } else {
+                    // restart alice / collator
+                    restart(collator, collator_block).await;
+                }
             }
         }
     };
