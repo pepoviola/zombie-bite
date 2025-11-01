@@ -715,8 +715,10 @@ pub async fn spawn(
     let base_dir = format!("{}/{}", base_path.to_string_lossy(), step.dir());
     let global_settings = zombienet_configuration::GlobalSettingsBuilder::new()
         .with_base_dir(&base_dir)
+        .with_tear_down_on_failure(false)
         .build()
         .expect("global settings should work");
+
 
     let network_config = zombienet_configuration::NetworkConfig::load_from_toml_with_settings(
         &config_file,
