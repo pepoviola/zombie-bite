@@ -52,12 +52,9 @@ pub async fn monit_progress(
         .await
         .expect("first check should works")
     } else {
+        // no collator deployed.
         -1_f64
     };
-
-    // let mut collator_block = progress(collator, 0)
-    //     .await
-    //     .expect("first check should works");
 
     let mut check_progress = async || {
         // check the progress

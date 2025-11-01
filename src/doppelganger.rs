@@ -707,8 +707,6 @@ pub async fn spawn(
 
     let config_file = format!("{}/config.toml", config_dir.to_string_lossy());
 
-    println!("config_dir {:?}", config_dir);
-
     // localize if needed (change the content if needed)
     localize_config(&config_file).await?;
     info!("spawning from {config_file}");

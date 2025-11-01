@@ -53,9 +53,8 @@ async fn resolve_if_dir_exist(base_path: &Path, step: Step) {
 }
 
 async fn ensure_startup_producing_blocks(network: &Network<LocalFileSystem>) {
-    // first wait until the collator reply the metrics if we deploy one
+    // IFF we have a collator, wait until the collator reply the metrics
     if let Ok(collator) = network.get_node("collator") {
-    // let collator = network.get_node("collator").expect("collator should be");
     let _ = collator
         .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
         .await
@@ -91,7 +90,7 @@ async fn post_spawn_loop(
         } else {
             None
         };
-        // let collator = network.get_node("collator")?;
+
         monit_progress(alice, bob, collator, Some(stop_file)).await;
     } else {
         while let Ok(false) = fs::try_exists(&stop_file).await {

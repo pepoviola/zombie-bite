@@ -44,9 +44,9 @@ toml = "0.9"
 # name = "spawn"
 # path = "src/from_toml.rs"
 
-#[patch.crates-io]
-#zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
-#zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
-#zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }
-#zombienet-support = { path = "../zombienet-sdk/crates/support" }
-#zombienet-sdk = { path = "../zombienet-sdk/crates/sdk" }
+# [patch.crates-io]
+# zombienet-orchestrator =  { path = "../zombienet-sdk/crates/orchestrator" }
+# zombienet-provider =  { path = "../zombienet-sdk/crates/provider" }
+# zombienet-configuration = { path = "../zombienet-sdk/crates/configuration" }
+# zombienet-support = { path = "../zombienet-sdk/crates/support" }
+# zombienet-sdk = { path = "../zombienet-sdk/crates/sdk" }
