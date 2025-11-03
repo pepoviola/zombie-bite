@@ -55,10 +55,10 @@ async fn resolve_if_dir_exist(base_path: &Path, step: Step) {
 async fn ensure_startup_producing_blocks(network: &Network<LocalFileSystem>) {
     // IFF we have a collator, wait until the collator reply the metrics
     if let Ok(collator) = network.get_node("collator") {
-    let _ = collator
-        .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
-        .await
-        .unwrap();
+        let _ = collator
+            .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
+            .await
+            .unwrap();
     }
 
     // ensure block production
@@ -147,8 +147,10 @@ async fn main() -> Result<(), anyhow::Error> {
             base_path,
             rc_sync_url,
             and_spawn,
+            database,
         } => {
-            let relaychain = Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url, relay_bite_at);
+            let relaychain =
+                Relaychain::new_with_values(&relay, relay_runtime, rc_sync_url, relay_bite_at);
             debug!("{:?}", relaychain);
             let base_path = get_base_path(base_path);
             let ah_rpc = if relaychain.as_chain_string() == "polkadot" {
@@ -157,8 +159,12 @@ async fn main() -> Result<(), anyhow::Error> {
                 AH_KUSAMA_RCP.to_string()
             };
 
-            let ah = Parachain::AssetHub { maybe_override: ah_runtime, maybe_bite_at: ah_bite_at, maybe_rpc_endpoint:  Some(ah_rpc)};
-            let _ = doppelganger_inner(base_path.clone(), relaychain, vec![ah])
+            let ah = Parachain::AssetHub {
+                maybe_override: ah_runtime,
+                maybe_bite_at: ah_bite_at,
+                maybe_rpc_endpoint: Some(ah_rpc),
+            };
+            let _ = doppelganger_inner(base_path.clone(), relaychain, vec![ah], &database)
                 .await
                 .expect("bite should work");
             if and_spawn {
