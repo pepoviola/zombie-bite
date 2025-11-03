@@ -846,7 +846,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_snap() {
         let snap_path = "/tmp/zombie-bite_1726677980197/snap.tgz";
-        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path, "rocksdb").await;
+        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path).await;
         // .unwrap();
         println!("{:?}", demo);
         // let _n = spawn(provider, chain_spec_path, snap_path).await.unwrap();
