@@ -846,7 +846,7 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_snap() {
         let snap_path = "/tmp/zombie-bite_1726677980197/snap.tgz";
-        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path).await;
+        let demo = generate_snap("/tmp/zombie-bite_1726677980197", snap_path, "rocksdb").await;
         // .unwrap();
         println!("{:?}", demo);
         // let _n = spawn(provider, chain_spec_path, snap_path).await.unwrap();
@@ -902,7 +902,7 @@ mod test {
             override_wasm: None,
         };
 
-        let network_config = generate_config(relay, vec![ah], None).await.unwrap();
+        let network_config = generate_config(relay, vec![ah], None, "rocksdb").await.unwrap();
 
         let toml = network_config.dump_to_toml().unwrap();
         println!("{toml}");
