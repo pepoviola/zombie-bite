@@ -243,7 +243,13 @@ pub async fn doppelganger_inner(
     } else {
         sync_chain.as_str()
     };
-    let parachains_path = format!("{sync_db_path}/chains/{sync_chain_in_path}/db/full/parachains");
+
+    let parachains_path = if database == "rocksdb" {
+        format!("{sync_db_path}/chains/{sync_chain_in_path}/db/full/parachains")
+    } else {
+        format!("{sync_db_path}/chains/{sync_chain_in_path}/paritydb/parachains")
+    };
+
     debug!("Deleting `parachains` db at {parachains_path}");
     tokio::fs::remove_dir_all(parachains_path)
         .await
@@ -902,7 +908,9 @@ mod test {
             override_wasm: None,
         };
 
-        let network_config = generate_config(relay, vec![ah], None, "rocksdb").await.unwrap();
+        let network_config = generate_config(relay, vec![ah], None, "rocksdb")
+            .await
+            .unwrap();
 
         let toml = network_config.dump_to_toml().unwrap();
         println!("{toml}");
