@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand};
 use std::str::FromStr;
+use tracing::warn;
 
 use crate::config::{Parachain, Relaychain, ZombieBiteConfig};
 
@@ -212,7 +213,14 @@ pub fn resolve_bite_config(
                     maybe_bite_at: None,
                     maybe_rpc_endpoint: None,
                 }),
-                _ => None,
+                unknown => {
+                    warn!(
+                        "⚠️  Warning: Unknown parachain '{}' will be ignored.
+                     Valid options are: asset-hub, coretime, people, bridge-hub, collectives",
+                        unknown
+                    );
+                    None
+                }
             })
             .collect()
     } else if let Some(ref config) = config_file {
