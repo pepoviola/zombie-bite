@@ -52,6 +52,7 @@ struct ChainArtifact {
     spec_path: String,
     snap_path: String,
     override_wasm: Option<String>,
+    para_id: Option<u32>,
 }
 
 pub async fn doppelganger_inner(
@@ -185,6 +186,7 @@ pub async fn doppelganger_inner(
             spec_path: chain_spec_path,
             snap_path,
             override_wasm: para.wasm_overrides().map(str::to_string),
+            para_id: Some(para.id()),
         });
     }
 
@@ -255,6 +257,7 @@ pub async fn doppelganger_inner(
         spec_path: r_chain_spec_path,
         snap_path: r_snap_path,
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
+        para_id: None,
     };
 
     let config = generate_config(
@@ -677,7 +680,7 @@ async fn generate_config(
 
             config = config.with_parachain(|p| {
                 let para_builder = p
-                    .with_id(1000)
+                    .with_id(para.para_id.unwrap_or(1000))
                     .with_chain(para.chain.as_str())
                     .with_default_command(para.cmd.as_str())
                     .with_chain_spec_path(chain_spec_path)
@@ -909,6 +912,7 @@ mod test {
             spec_path: "/home/ubuntu/something.json".into(),
             snap_path: "/home/ubuntu/something.tgz".into(),
             override_wasm: None,
+            para_id: None,
         };
         let ah = ChainArtifact {
             cmd: "doppelganger-parachain".into(),
@@ -916,6 +920,7 @@ mod test {
             spec_path: "/home/ubuntu/something-ah.json".into(),
             snap_path: "/home/ubuntu/something-ah.tgz".into(),
             override_wasm: None,
+            para_id: Some(1000),
         };
 
         let network_config = generate_config(relay, vec![ah], None).await.unwrap();
