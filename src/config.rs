@@ -400,6 +400,9 @@ const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const CHARLIE: &str = "charlie";
 const DAVE: &str = "dave";
+const EVE: &str = "eve";
+const FERDIE: &str = "ferdie";
+const GEORGE: &str = "george";
 
 pub fn generate_network_config(
     network: &Relaychain,
@@ -417,6 +420,12 @@ pub fn generate_network_config(
         Relaychain::Paseo { .. } => DEFAULT_CHAIN_SPEC_TPL_COMMAND,
     };
 
+    // Calculate required validators based on parachain count
+    // Base: 2 validators (Alice, Bob) + 1 per parachain
+    // Max supported: 7 validators for up to 5 parachains
+    let num_parachains = paras.len();
+    let required_validators = 2 + num_parachains;
+
     let network_builder = NetworkConfigBuilder::new().with_relaychain(|r| {
         let relaychain_builder = r
             .with_chain(relay_chain.as_str())
@@ -426,6 +435,7 @@ pub fn generate_network_config(
             // .with_default_args(vec![("-l", "babe=debug,grandpa=debug,runtime=debug,parachain::=debug,sub-authority-discovery=trace").into()])
             .with_default_args(vec![("-l", "runtime=trace").into()]);
 
+        // Always add Alice (with optional custom RPC port)
         let relaychain_builder = if let Ok(port) = env::var("ZOMBIE_BITE_RC_PORT") {
             let rpc_port = port
                 .parse()
@@ -435,10 +445,19 @@ pub fn generate_network_config(
             relaychain_builder.with_node(|node| node.with_name(ALICE))
         };
 
-        // .with_node(|node| node.with_name(ALICE))
-        relaychain_builder.with_node(|node| node.with_name(BOB))
-        // .with_node(|node| node.with_name(CHARLIE))
-        // .with_node(|node| node.with_name(DAVE))
+        // Always add Bob
+        let relaychain_builder = relaychain_builder.with_node(|node| node.with_name(BOB));
+
+        // Add additional validators based on parachain count
+        let validator_names = [CHARLIE, DAVE, EVE, FERDIE, GEORGE];
+        let additional_validators_needed = required_validators.saturating_sub(2);
+        
+        validator_names
+            .iter()
+            .take(additional_validators_needed)
+            .fold(relaychain_builder, |builder, &name| {
+                builder.with_node(|node| node.with_name(name))
+            })
     });
 
     let network_builder = paras.iter().fold(network_builder, |builder, para| {
