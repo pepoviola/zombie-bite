@@ -278,17 +278,28 @@ pub async fn doppelganger_inner(
         .parse::<u64>()
         .expect("read bite rc block should works");
 
-    let ah_start_block = fs::read_to_string(format!("{base_dir_str}/para-1000.txt"))
-        .await
-        .unwrap()
-        .parse::<u64>()
-        .expect("read bite ah block should works");
+    // Collect start blocks for all parachains
+    let mut para_start_blocks = serde_json::Map::new();
+    for para in &paras_to {
+        let para_start_block = fs::read_to_string(format!("{base_dir_str}/para-{}.txt", para.id()))
+            .await
+            .unwrap()
+            .parse::<u64>()
+            .unwrap_or_else(|_| panic!("read bite para-{} block should works", para.id()));
+        para_start_blocks.insert(
+            format!("para_{}_start_block", para.id()),
+            serde_json::Value::Number(para_start_block.into()),
+        );
+    }
 
     // ready to start
-    let ready_content = json!({
+    let mut ready_content = json!({
         "rc_start_block": rc_start_block,
-        "ah_start_block": ah_start_block,
     });
+    // Add all parachain start blocks
+    for (key, value) in para_start_blocks {
+        ready_content[key] = value;
+    }
 
     let alice_config = config
         .relaychain()
@@ -297,22 +308,25 @@ pub async fn doppelganger_inner(
         .find(|node| node.name() == "alice")
         .expect("'alice' should exist");
 
-    let ah_config = config
-        .parachains()
-        .into_iter()
-        .last()
-        .expect("shoul be one parachain");
-    let collator_config = ah_config
-        .collators()
-        .into_iter()
-        .last()
-        .expect("should be one collator");
+    // Collect ports for all parachains
+    let mut collator_ports = serde_json::Map::new();
+    for para_config in config.parachains() {
+        if let Some(collator) = para_config.collators().first() {
+            collator_ports.insert(
+                format!("para_{}_collator_port", para_config.id()),
+                serde_json::Value::Number(collator.rpc_port().unwrap().into()),
+            );
+        }
+    }
 
     // ports
-    let ports_content = json!({
+    let mut ports_content = json!({
         "alice_port" : alice_config.rpc_port().unwrap(),
-        "collator_port": collator_config.rpc_port().unwrap(),
     });
+    // Add all collator ports
+    for (key, value) in collator_ports {
+        ports_content[key] = value;
+    }
 
     let _ = fs::write(
         format!("{}/{PORTS_FILE}", global_base_dir.to_string_lossy()),
@@ -325,7 +339,7 @@ pub async fn doppelganger_inner(
     )
     .await;
 
-    clean_up_dir_for_step(global_base_dir, Step::Bite, &relay_chain).await?;
+    clean_up_dir_for_step(global_base_dir, Step::Bite, &relay_chain, &paras_to).await?;
 
     Ok(())
 }
@@ -430,6 +444,7 @@ pub async fn clean_up_dir_for_step(
     global_base_dir: PathBuf,
     step: Step,
     rc: &Relaychain,
+    paras: &[Parachain],
 ) -> Result<(), anyhow::Error> {
     let global_base_dir_str = global_base_dir.to_string_lossy();
     // clean bite directory to leave only the needed artifacts
@@ -454,29 +469,37 @@ pub async fn clean_up_dir_for_step(
         .expect("Create step dir should works");
     info!("created dir {step_path}");
 
-    // copy needed files
-    let ah_spec = format!("asset-hub-{}-spec.json", rc.as_chain_string());
-    let ah_snap = format!("asset-hub-{}-snap.tgz", rc.as_chain_string());
+    // Build list of needed files dynamically based on parachains
     let rc_spec = format!("{}-spec.json", rc.as_chain_string());
     let rc_snap = format!("{}-snap.tgz", rc.as_chain_string());
     let alice_snap = format!("alice-{}-snap.tgz", rc.as_chain_string());
     let bob_snap = format!("bob-{}-snap.tgz", rc.as_chain_string());
-    let mut needed_files = vec!["config.toml", &ah_spec, &ah_snap, &rc_spec];
 
-    if step == Step::Bite {
-        needed_files.push(&rc_snap);
-    } else {
-        needed_files.push(&alice_snap);
-        needed_files.push(&bob_snap);
+    let mut needed_files: Vec<String> = vec!["config.toml".to_string(), rc_spec.clone()];
+
+    // Add parachain files dynamically
+    for para in paras {
+        let para_chain_name = para.as_chain_string(&rc.as_chain_string());
+        let para_spec = format!("{}-spec.json", para_chain_name);
+        let para_snap = format!("{}-snap.tgz", para_chain_name);
+        needed_files.push(para_spec);
+        needed_files.push(para_snap);
     }
 
-    for file in needed_files {
+    if step == Step::Bite {
+        needed_files.push(rc_snap);
+    } else {
+        needed_files.push(alice_snap);
+        needed_files.push(bob_snap);
+    }
+
+    for file in &needed_files {
         let from = format!("{debug_path}/{file}");
         let to = format!("{step_path}/{file}");
         info!("mv {from} {to}");
         fs::rename(&from, &to)
             .await
-            .unwrap_or_else(|_| panic!("copy from {from} to {to} should works"));
+            .unwrap_or_else(|e| panic!("Failed to move {from} to {to}: {e}"));
     }
 
     Ok(())

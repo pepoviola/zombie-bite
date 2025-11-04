@@ -109,7 +109,7 @@ async fn tear_down_and_generate(
         doppelganger::generate_artifacts(base_path.clone(), step, &rc)
             .await
             .expect("generate should works");
-        doppelganger::clean_up_dir_for_step(base_path, step, &rc)
+        doppelganger::clean_up_dir_for_step(base_path, step, &rc, &[])
             .await
             .expect("clean-up should works");
     }
@@ -244,7 +244,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let rc = Relaychain::new(&relay);
             let step: Step = step.into();
             let base_path = get_base_path(base_path);
-            doppelganger::clean_up_dir_for_step(base_path, step, &rc)
+            doppelganger::clean_up_dir_for_step(base_path, step, &rc, &[])
                 .await
                 .expect("clean-up should works");
         }
