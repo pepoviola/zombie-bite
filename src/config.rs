@@ -212,16 +212,16 @@ impl Relaychain {
     // TODO: make this endpoints configurables
     pub fn sync_endpoint(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot { .. } => "wss://polkadot-rpc.dwellir.com",
-            Relaychain::Kusama { .. } => "wss://kusama-rpc.dwellir.com",
+            Relaychain::Polkadot { .. } => "wss://rpc.polkadot.io",
+            Relaychain::Kusama { .. } => "wss://kusama-rpc.polkadot.io",
             Relaychain::Paseo { .. } => "wss://paseo-rpc.dwellir.com",
         })
     }
 
     pub fn rpc_endpoint(&self) -> String {
         String::from(match self {
-            Relaychain::Polkadot { .. } => "wss://polkadot-rpc.dwellir.com",
-            Relaychain::Kusama { .. } => "wss://kusama-rpc.dwellir.com",
+            Relaychain::Polkadot { .. } => "wss://rpc.polkadot.io",
+            Relaychain::Kusama { .. } => "wss://kusama-rpc.polkadot.io",
             Relaychain::Paseo { .. } => "wss://paseo-rpc.dwellir.com",
         })
     }
@@ -440,14 +440,13 @@ pub fn generate_network_config(
             let rpc_port = port
                 .parse()
                 .expect("env var ZOMBIE_BITE_RC_PORT must be a valid u16");
-            relaychain_builder.with_node(|node| node.with_name(ALICE).with_rpc_port(rpc_port))
+            relaychain_builder.with_validator(|node| node.with_name(ALICE).with_rpc_port(rpc_port))
         } else {
-            relaychain_builder.with_node(|node| node.with_name(ALICE))
+            relaychain_builder.with_validator(|node| node.with_name(ALICE))
         };
 
         // Always add Bob
-        let relaychain_builder = relaychain_builder.with_node(|node| node.with_name(BOB));
-
+        let relaychain_builder = relaychain_builder.with_validator(|node| node.with_name(BOB));
         // Add additional validators based on parachain count
         let validator_names = [CHARLIE, DAVE, EVE, FERDIE, GEORGE];
         let additional_validators_needed = required_validators.saturating_sub(2);
@@ -456,7 +455,7 @@ pub fn generate_network_config(
             .iter()
             .take(additional_validators_needed)
             .fold(relaychain_builder, |builder, &name| {
-                builder.with_node(|node| node.with_name(name))
+                builder.with_validator(|node| node.with_name(name))
             })
     });
 

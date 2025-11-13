@@ -16,6 +16,134 @@ use tokio::net::TcpListener;
 use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use tracing::trace;
 
+// Well-known validator keys from Substrate's test keyring
+// These are standard development keys used across all Substrate-based chains
+// Reference: https://github.com/paritytech/substrate/blob/master/primitives/keyring/src/sr25519.rs
+// Generated using: subkey inspect //Alice, //Bob, //Charlie, etc.
+//
+// IMPORTANT: These are PUBLIC TEST KEYS - NEVER use in production!
+pub struct ValidatorKeys {
+    pub name: &'static str,
+    pub stash: &'static str,
+    pub babe: &'static str,
+    pub grandpa: &'static str,
+    pub para_validator: &'static str,
+    pub para_assignment: &'static str,
+    pub authority_discovery: &'static str,
+    pub beefy: &'static str,
+}
+
+impl ValidatorKeys {
+    pub fn session_keys_encoded(&self) -> String {
+        format!(
+            "{}{}{}{}{}{}",
+            self.babe,
+            self.grandpa,
+            self.para_validator,
+            self.para_assignment,
+            self.authority_discovery,
+            self.beefy
+        )
+    }
+
+    pub fn session_keys_queuedkeys_format(&self) -> String {
+        format!("{}{}", self.stash, self.session_keys_encoded())
+    }
+}
+
+pub const ALICE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "alice",
+    stash: "be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25f",
+    babe: "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+    grandpa: "88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee",
+    para_validator: "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+    para_assignment: "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+    authority_discovery: "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+    beefy: "020a1091341fe5664bfa1782d5e04779689068c916b04cb365ec3153755684d9a1",
+};
+
+pub const BOB_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "bob",
+    stash: "fe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e",
+    babe: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48",
+    grandpa: "d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae69",
+    para_validator: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48",
+    para_assignment: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48",
+    authority_discovery: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48",
+    beefy: "0390084fdbf27d2b79d26a4f13f0ccd982cb755a661969143c37cbc49ef5b91f27",
+};
+
+pub const CHARLIE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "charlie",
+    stash: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    babe: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    grandpa: "439660b36c6c03afafca027b910b4fecf99801834c62a5e6006f27d978de234f",
+    para_validator: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    para_assignment: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    authority_discovery: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    beefy: "020e7446f3910e15fed2b2db1e71a01c57f3dd85cc2e65f30680220e09f8bbbc79",
+};
+
+pub const DAVE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "dave",
+    stash: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48",
+    babe: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    grandpa: "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    para_validator: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    para_assignment: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    authority_discovery: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    beefy: "0227e2b139697b04eb01f4eef7e8f3724431b795c45ce6ef7b8e23a4e93f4abd26",
+};
+
+pub const EVE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "eve",
+    stash: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    babe: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    grandpa: "b9d0ca094bd5b8b3225d7651eac5d18c1c04bf8ae8f8b263eebca4e1410ed0c0",
+    para_validator: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    para_assignment: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    authority_discovery: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    beefy: "031d10105e323c4afce225208f71a6441ee327a65b9e646e772500c74d31f669aa",
+};
+
+pub const FERDIE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "ferdie",
+    stash: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    babe: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    grandpa: "bc9d0ca094bd5b8b3225d7651eac5d18c1c04bf8ae8f8b263eebca4e1410ed0c",
+    para_validator: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    para_assignment: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    authority_discovery: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    beefy: "0291f1217d5a04cb83312ee3d88a6e6b33284e053e6ccfc3a90339a0299d12967c",
+};
+
+pub const GEORGE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "george",
+    stash: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    babe: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
+    grandpa: "6c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
+    para_validator: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
+    para_assignment: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
+    authority_discovery: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
+    beefy: "036c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
+};
+
+/// Get the validator keys for the specified number of validators
+/// Returns keys for alice, bob, charlie, dave, eve, ferdie, george (max 7)
+pub fn get_validator_keys(count: usize) -> Vec<&'static ValidatorKeys> {
+    let all_keys = [
+        &ALICE_KEYS,
+        &BOB_KEYS,
+        &CHARLIE_KEYS,
+        &DAVE_KEYS,
+        &EVE_KEYS,
+        &FERDIE_KEYS,
+        &GEORGE_KEYS,
+    ];
+
+    all_keys.into_iter().take(count).collect()
+}
+
 /// Parachain id.
 ///
 /// This is an equivalent of the `polkadot_parachain_primitives::Id`, which is a compact-encoded

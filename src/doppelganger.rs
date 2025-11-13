@@ -52,7 +52,6 @@ struct ChainArtifact {
     spec_path: String,
     snap_path: String,
     override_wasm: Option<String>,
-    para_id: Option<u32>,
 }
 
 pub async fn doppelganger_inner(
@@ -186,7 +185,6 @@ pub async fn doppelganger_inner(
             spec_path: chain_spec_path,
             snap_path,
             override_wasm: para.wasm_overrides().map(str::to_string),
-            para_id: Some(para.id()),
         });
     }
 
@@ -241,6 +239,7 @@ pub async fn doppelganger_inner(
     } else {
         sync_chain.as_str()
     };
+
     let parachains_path = format!("{sync_db_path}/chains/{sync_chain_in_path}/db/full/parachains");
     debug!("Deleting `parachains` db at {parachains_path}");
     tokio::fs::remove_dir_all(parachains_path)
@@ -257,7 +256,6 @@ pub async fn doppelganger_inner(
         spec_path: r_chain_spec_path,
         snap_path: r_snap_path,
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
-        para_id: None,
     };
 
     let config = generate_config(
@@ -508,6 +506,154 @@ pub async fn clean_up_dir_for_step(
     Ok(())
 }
 
+/// Update chain spec to include additional validators beyond alice and bob
+async fn update_chain_spec_with_validators(
+    chain_spec_path: &Path,
+    num_validators: usize,
+) -> Result<(), anyhow::Error> {
+    use serde_json::Value;
+
+    if num_validators <= 2 {
+        // No need to update, alice and bob are already in the spec
+        return Ok(());
+    }
+
+    info!(
+        "Updating chain spec to include {} validators",
+        num_validators
+    );
+
+    // Read the chain spec
+    let spec_content = tokio::fs::read_to_string(chain_spec_path).await?;
+    let mut spec: Value = serde_json::from_str(&spec_content)?;
+
+    let validators = [
+        (
+            "alice",
+            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
+            "5FA9nQDVg267DEd8m1ZypXLBnvN7SFxYwV7ndqSYGiN9TTpu",
+        ),
+        (
+            "bob",
+            "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
+            "5GoNkf6WdbxCFnPdAnYYQyCjAKPJgLNxXwPjwTh6DGg6gN3E",
+        ),
+        (
+            "charlie",
+            "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
+            "5DbKjhNLpqX3zqZdNBc9BGb4fHU1cRBaDhJUskrvkwfraDi6",
+        ),
+        (
+            "dave",
+            "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
+            "5HVTX4RkLgGDxmzYGLaBSHKPTJ2Sk8cDX7vD2NVsXWw8Jq3X",
+        ),
+        (
+            "eve",
+            "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
+            "5F5SbjU79vZyPgtqz8mXvLmPStxKDxZ4gw3FnD7qXKHjkMJh",
+        ),
+        (
+            "ferdie",
+            "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
+            "5D9MxoU6NVFGEVfWD2t68e2eKq3WGS9Q9jQgJJrRMWdD8PfM",
+        ),
+        (
+            "george",
+            "5F4tQyNE9tBZe5SEvcgD2fHsHVdFGVhViBfC4kKVEqAbqJBF",
+            "5D3dVFtj6cBx5F2nWiWC9X8aMLuQYPPjVZhXQmWmNGKdD9kk",
+        ),
+    ];
+
+    // Get genesis runtime config
+    if let Some(genesis) = spec.get_mut("genesis") {
+        if let Some(runtime) = genesis.get_mut("runtime") {
+            // Update session keys
+            if let Some(session) = runtime.get_mut("session") {
+                if let Some(keys) = session.get_mut("keys") {
+                    if let Some(keys_array) = keys.as_array_mut() {
+                        // Keep existing keys and add new ones
+                        keys_array.clear();
+
+                        for i in 0..num_validators {
+                            let (name, stash, controller) = validators[i];
+
+                            // For grandpa (ed25519) and babe/aura (sr25519), we use the controller key
+                            keys_array.push(json!([
+                                stash,
+                                stash,
+                                {
+                                    "grandpa": controller,
+                                    "babe": controller,
+                                    "im_online": controller,
+                                    "para_validator": controller,
+                                    "para_assignment": controller,
+                                    "authority_discovery": controller,
+                                    "beefy": controller,
+                                }
+                            ]));
+
+                            info!("Added session keys for validator: {}", name);
+                        }
+                    }
+                }
+            }
+
+            // Update BABE authorities
+            if let Some(babe) = runtime.get_mut("babe") {
+                if let Some(authorities) = babe.get_mut("authorities") {
+                    if let Some(authorities_array) = authorities.as_array_mut() {
+                        authorities_array.clear();
+                        for i in 0..num_validators {
+                            let (name, _, controller) = validators[i];
+                            authorities_array.push(json!([controller, 1]));
+                            info!("Added BABE authority: {}", name);
+                        }
+                    }
+                }
+            }
+
+            // Update GRANDPA authorities
+            if let Some(grandpa) = runtime.get_mut("grandpa") {
+                if let Some(authorities) = grandpa.get_mut("authorities") {
+                    if let Some(authorities_array) = authorities.as_array_mut() {
+                        authorities_array.clear();
+                        for i in 0..num_validators {
+                            let (name, _, controller) = validators[i];
+                            authorities_array.push(json!([controller, 1]));
+                            info!("Added GRANDPA authority: {}", name);
+                        }
+                    }
+                }
+            }
+
+            // Update Aura authorities if present (for some chains instead of BABE)
+            if let Some(aura) = runtime.get_mut("aura") {
+                if let Some(authorities) = aura.get_mut("authorities") {
+                    if let Some(authorities_array) = authorities.as_array_mut() {
+                        authorities_array.clear();
+                        for i in 0..num_validators {
+                            let (name, _, controller) = validators[i];
+                            authorities_array.push(json!(controller));
+                            info!("Added Aura authority: {}", name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Write the updated chain spec back
+    let updated_spec = serde_json::to_string_pretty(&spec)?;
+    tokio::fs::write(chain_spec_path, updated_spec).await?;
+
+    info!(
+        "Chain spec updated successfully with {} validators",
+        num_validators
+    );
+    Ok(())
+}
+
 async fn generate_config(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
@@ -573,7 +719,15 @@ async fn generate_config(
         get_random_port().await
     };
 
-    // config a new network with alice/bob
+    // Calculate required validators: 2 base + 1 per parachain (max 7)
+    let num_validators = (2 + paras.len()).min(7);
+
+    // Update the chain spec to include all required validators
+    update_chain_spec_with_validators(&chain_spec_path, num_validators)
+        .await
+        .map_err(|e| format!("Failed to update chain spec: {}", e))?;
+
+    // config a new network with dynamic validators
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
         let mut default_args = vec![
             ("-l", leaked_rust_log.as_str()).into(),
@@ -596,17 +750,22 @@ async fn generate_config(
             .with_default_db_snapshot(db_path)
             .with_default_args(default_args);
 
-        // We override the code directly in the db
-        // relay_builder = if let Some(override_path) = relaychain.override_wasm {
-        //     relay_builder.with_wasm_override(override_path.as_str())
-        // } else {
-        //     relay_builder
-        // };
+        {
+            let mut relay_builder = relay_builder
+                .with_validator(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
+                .with_validator(|node| node.with_name("bob").with_rpc_port(rpc_bob_port));
 
-        relay_builder
-            .with_node(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
-            .with_node(|node| node.with_name("bob").with_rpc_port(rpc_bob_port))
+            let additional_validators = ["charlie", "dave", "eve", "ferdie", "george"];
+            for name in additional_validators
+                .iter()
+                .take(num_validators.saturating_sub(2))
+            {
+                relay_builder = relay_builder.with_validator(|node| node.with_name(*name));
+            }
+            relay_builder
+        }
     });
+
     if !paras.is_empty() {
         // TODO: enable for multiple paras
         // let validation_context = Rc::new(RefCell::new(ValidationContext::default()));
@@ -680,7 +839,7 @@ async fn generate_config(
 
             config = config.with_parachain(|p| {
                 let para_builder = p
-                    .with_id(para.para_id.unwrap_or(1000))
+                    .with_id(1005)
                     .with_chain(para.chain.as_str())
                     .with_default_command(para.cmd.as_str())
                     .with_chain_spec_path(chain_spec_path)
@@ -912,7 +1071,6 @@ mod test {
             spec_path: "/home/ubuntu/something.json".into(),
             snap_path: "/home/ubuntu/something.tgz".into(),
             override_wasm: None,
-            para_id: None,
         };
         let ah = ChainArtifact {
             cmd: "doppelganger-parachain".into(),
@@ -920,10 +1078,11 @@ mod test {
             spec_path: "/home/ubuntu/something-ah.json".into(),
             snap_path: "/home/ubuntu/something-ah.tgz".into(),
             override_wasm: None,
-            para_id: Some(1000),
         };
 
-        let network_config = generate_config(relay, vec![ah], None).await.unwrap();
+        let network_config = generate_config(relay, vec![ah], None, "paritydb")
+            .await
+            .unwrap();
 
         let toml = network_config.dump_to_toml().unwrap();
         println!("{toml}");
