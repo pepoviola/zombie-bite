@@ -16,12 +16,6 @@ use tokio::net::TcpListener;
 use codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use tracing::trace;
 
-// Well-known validator keys from Substrate's test keyring
-// These are standard development keys used across all Substrate-based chains
-// Reference: https://github.com/paritytech/substrate/blob/master/primitives/keyring/src/sr25519.rs
-// Generated using: subkey inspect //Alice, //Bob, //Charlie, etc.
-//
-// IMPORTANT: These are PUBLIC TEST KEYS - NEVER use in production!
 pub struct ValidatorKeys {
     pub name: &'static str,
     pub stash: &'static str,
@@ -37,8 +31,8 @@ impl ValidatorKeys {
     pub fn session_keys_encoded(&self) -> String {
         format!(
             "{}{}{}{}{}{}",
-            self.babe,
             self.grandpa,
+            self.babe,
             self.para_validator,
             self.para_assignment,
             self.authority_discovery,

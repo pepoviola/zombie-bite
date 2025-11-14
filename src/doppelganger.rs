@@ -1080,7 +1080,7 @@ mod test {
             override_wasm: None,
         };
 
-        let network_config = generate_config(relay, vec![ah], None, "paritydb")
+        let network_config = generate_config(relay, vec![ah], None)
             .await
             .unwrap();
 

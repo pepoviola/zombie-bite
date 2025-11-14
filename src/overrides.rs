@@ -5,6 +5,21 @@ use serde_json::{json, Value};
 use std::{env, path::PathBuf};
 use tokio::fs;
 
+/// Generate the injects for Session.NextKeys storage overrides for validators
+pub fn generate_next_keys_injects(validator_keys: &[&crate::utils::ValidatorKeys]) -> serde_json::Value {
+    let mut next_keys_injects = serde_json::json!({});
+    for keys in validator_keys {
+        let stash_bytes = hex::decode(keys.stash).expect("stash should be valid hex");
+        let stash_hash = array_bytes::bytes2hex("", &subhasher::twox64_concat(&stash_bytes)[..8]);
+        let inject_key = format!(
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb3{}{}",
+            stash_hash, keys.stash
+        );
+        next_keys_injects[inject_key] = serde_json::json!(keys.session_keys_encoded());
+    }
+    next_keys_injects
+}
+
 pub async fn generate_default_overrides_for_rc(
     base_dir: &str,
     relay: &Relaychain,
@@ -14,25 +29,14 @@ pub async fn generate_default_overrides_for_rc(
     let num_validators = (2 + paras.len()).min(7);
     let validator_keys = get_validator_keys(num_validators);
 
-    // Build stash list for validators (concatenated hex)
     let stash_list: String = validator_keys
         .iter()
         .map(|v| v.stash)
         .collect::<Vec<_>>()
         .join("");
 
-    // Build session keys for NextKeys (inject)
-    // Session.NextKeys uses TwoX64Concat hasher, so key format is: prefix + twox64(stash) + stash
-    let mut next_keys_injects = json!({});
-    for keys in &validator_keys {
-        let stash_bytes = hex::decode(keys.stash).expect("stash should be valid hex");
-        let stash_hash = array_bytes::bytes2hex("", subhasher::twox64(&stash_bytes));
-        let inject_key = format!(
-            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb3{}{}",
-            stash_hash, keys.stash
-        );
-        next_keys_injects[inject_key] = json!(keys.session_keys_encoded());
-    }
+  
+    let next_keys_injects = generate_next_keys_injects(&validator_keys);
 
     // Build QueuedKeys (stash + session_keys for each validator)
     let queued_keys: String = validator_keys
@@ -291,7 +295,11 @@ pub async fn generate_default_overrides_for_para(
 
 #[cfg(test)]
 mod test {
-    use super::generate_default_overrides_for_rc;
+    use serde_json::json;
+
+    use crate::utils::get_validator_keys;
+
+    use super::{generate_default_overrides_for_rc, generate_next_keys_injects};
 
     #[tokio::test]
     async fn overrides_rc() {
@@ -302,5 +310,41 @@ mod test {
             &paras,
         )
         .await;
+    }
+
+    #[test]
+    fn test_generate_next_keys_injects() {
+        let validator_keys = get_validator_keys(2);
+        let next_keys_injects = generate_next_keys_injects(&validator_keys);
+
+        let expected = json!({
+            // Session NextKeys (alice)
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb3e535263148daaf49be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25f": "88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0eed43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d020a1091341fe5664bfa1782d5e04779689068c916b04cb365ec3153755684d9a1",
+            // Session NextKeys (bob)
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb30e5be00fbc2e15b5fe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e": "d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae698eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a480390084fdbf27d2b79d26a4f13f0ccd982cb755a661969143c37cbc49ef5b91f27",
+        });
+
+        assert_eq!(next_keys_injects, expected);
+    }
+
+    #[tokio::test]
+    async fn alive_and_bob_inject_keys() {
+        let validator_keys = get_validator_keys(2);
+        let mut next_keys_injects = generate_next_keys_injects(&validator_keys);
+
+        // RcMigrator Manager (set //Alice by default)
+        next_keys_injects["2185d18cb42ae97242af0e70e6ad689012fcd13ee43ae32cc87f798eb5ed3295"] =
+            json!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
+
+        let expected = json!({
+            // Session NextKeys (alice)
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb3e535263148daaf49be5ddb1579b72e84524fc29e78609e3caf42e85aa118ebfe0b0ad404b5bdd25f": "88dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0eed43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27dd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d020a1091341fe5664bfa1782d5e04779689068c916b04cb365ec3153755684d9a1",
+            // Session NextKeys (bob)
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb30e5be00fbc2e15b5fe65717dad0447d715f660a0a58411de509b42e6efb8375f562f58a554d5860e": "d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae698eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a488eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a480390084fdbf27d2b79d26a4f13f0ccd982cb755a661969143c37cbc49ef5b91f27",
+            // RcMigrator Manager (set //Alice by default) see: https://github.com/polkadot-fellows/runtimes/blob/22116f7d02c220db4f7187c6967dbd6bf89274cf/pallets/rc-migrator/src/lib.rs#L702-L707
+            "2185d18cb42ae97242af0e70e6ad689012fcd13ee43ae32cc87f798eb5ed3295": "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
+        });
+
+        assert_eq!(next_keys_injects, expected);
     }
 }
