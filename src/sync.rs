@@ -11,7 +11,7 @@ use crate::config::get_state_pruning_config;
 use crate::utils::get_random_port;
 
 use reqwest::Url;
-use tracing::{debug, info, trace};
+use tracing::{debug, error, info, trace};
 use zombienet_orchestrator::metrics::{Metrics, MetricsHelper};
 use zombienet_provider::{types::SpawnNodeOptions, DynNamespace, DynNode};
 use zombienet_support::net::wait_ws_ready;
@@ -88,6 +88,7 @@ pub async fn sync_relay_only(
     Ok((sync_node, sync_db_path, chain.as_ref().to_string()))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn sync_para(
     ns: DynNamespace,
     cmd: impl AsRef<str>,
@@ -126,7 +127,7 @@ pub async fn sync_para(
     env.push(("ZOMBIE_PARA_OVERRIDES_PATH", &para_overrides_path));
     env.push(("ZOMBIE_PARA_HEAD_PATH", &para_head_path));
     env.push(("RUST_LOG", "doppelganger=debug"));
-    env.push(("ZOMBIE_INFO_PATH".into(), info_path.as_ref().into()));
+    env.push(("ZOMBIE_INFO_PATH", info_path.as_ref()));
 
     trace!("env: {env:?}");
 
@@ -135,11 +136,9 @@ pub async fn sync_para(
         // get chain spec from https://paseo-r2.zondax.ch/chain-specs/paseo-asset-hub.json
         let response = reqwest::get(PASEO_ASSET_HUB_SPEC_URL)
             .await
-            .expect(&format!(
-                "Download paseo-asset-hub.json from {PASEO_ASSET_HUB_SPEC_URL} should work."
-            ));
+            .unwrap_or_else(|_| panic!("Create file {dest_for_paseo} should work"));
         let mut file = std::fs::File::create(&dest_for_paseo)
-            .expect(&format!("Create file {dest_for_paseo} should work"));
+            .unwrap_or_else(|_| panic!("Create file {dest_for_paseo} should work"));
         let mut content = Cursor::new(response.bytes().await.expect("Create cursor should works."));
         std::io::copy(&mut content, &mut file).expect("Copy bytes should works.");
         dest_for_paseo.as_str()
@@ -147,7 +146,14 @@ pub async fn sync_para(
         chain.as_ref()
     };
 
-    let opts = SpawnNodeOptions::new("sync-node-para", cmd.as_ref())
+    let unique_node_name = format!("sync-node-para-{}", chain.as_ref().replace("-", "_"));
+    info!(
+        "🔄 Starting sync for parachain: {} with unique node name: {}",
+        chain.as_ref(),
+        unique_node_name
+    );
+
+    let opts = SpawnNodeOptions::new(unique_node_name.as_str(), cmd.as_ref())
         .args(vec![
             "--chain",
             chain_arg,
@@ -180,8 +186,14 @@ pub async fn sync_para(
 
     wait_ws_ready(&metrics_url).await.unwrap();
     let url = reqwest::Url::try_from(metrics_url.as_str()).unwrap();
-    wait_sync(url).await.unwrap();
-    info!("✅ Synced (chain: {}), stopping node.", chain.as_ref());
+
+    match wait_sync(url).await {
+        Ok(_) => info!("✅ Synced (chain: {}), stopping node.", chain.as_ref()),
+        Err(e) => {
+            error!("❌ Sync failed for parachain {}: {}", chain.as_ref(), e);
+            return Err(());
+        }
+    }
     // we should just paused
     // sync_node.destroy().await.unwrap();
     Ok((
