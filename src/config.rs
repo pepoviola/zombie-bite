@@ -448,7 +448,7 @@ pub fn generate_network_config(
         // Always add Bob
         let relaychain_builder = relaychain_builder.with_validator(|node| node.with_name(BOB));
         // Add additional validators based on parachain count
-        let validator_names = [CHARLIE, DAVE, EVE, FERDIE, GEORGE];
+        let validator_names = [CHARLIE, DAVE,FERDIE ,  EVE, GEORGE];
         let additional_validators_needed = required_validators.saturating_sub(2);
 
         validator_names

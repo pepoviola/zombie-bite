@@ -52,6 +52,7 @@ struct ChainArtifact {
     spec_path: String,
     snap_path: String,
     override_wasm: Option<String>,
+    para_id: Option<u32>,
 }
 
 pub async fn doppelganger_inner(
@@ -185,6 +186,7 @@ pub async fn doppelganger_inner(
             spec_path: chain_spec_path,
             snap_path,
             override_wasm: para.wasm_overrides().map(str::to_string),
+            para_id: Some(para.id()),
         });
     }
 
@@ -256,6 +258,7 @@ pub async fn doppelganger_inner(
         spec_path: r_chain_spec_path,
         snap_path: r_snap_path,
         override_wasm: relay_chain.wasm_overrides().map(str::to_string),
+        para_id: None,
     };
 
     let config = generate_config(
@@ -549,14 +552,14 @@ async fn update_chain_spec_with_validators(
             "5HVTX4RkLgGDxmzYGLaBSHKPTJ2Sk8cDX7vD2NVsXWw8Jq3X",
         ),
         (
-            "eve",
-            "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
-            "5F5SbjU79vZyPgtqz8mXvLmPStxKDxZ4gw3FnD7qXKHjkMJh",
-        ),
-        (
             "ferdie",
             "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
             "5D9MxoU6NVFGEVfWD2t68e2eKq3WGS9Q9jQgJJrRMWdD8PfM",
+        ),
+          (
+            "eve",
+            "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
+            "5F5SbjU79vZyPgtqz8mXvLmPStxKDxZ4gw3FnD7qXKHjkMJh",
         ),
         (
             "george",
@@ -755,7 +758,7 @@ async fn generate_config(
                 .with_validator(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
                 .with_validator(|node| node.with_name("bob").with_rpc_port(rpc_bob_port));
 
-            let additional_validators = ["charlie", "dave", "eve", "ferdie", "george"];
+            let additional_validators = ["charlie", "dave","ferdie", "eve", "george"];
             for name in additional_validators
                 .iter()
                 .take(num_validators.saturating_sub(2))
@@ -839,7 +842,7 @@ async fn generate_config(
 
             config = config.with_parachain(|p| {
                 let para_builder = p
-                    .with_id(1005)
+                    .with_id(para.para_id.unwrap_or(1000))
                     .with_chain(para.chain.as_str())
                     .with_default_command(para.cmd.as_str())
                     .with_chain_spec_path(chain_spec_path)
@@ -1071,6 +1074,7 @@ mod test {
             spec_path: "/home/ubuntu/something.json".into(),
             snap_path: "/home/ubuntu/something.tgz".into(),
             override_wasm: None,
+            para_id: None,
         };
         let ah = ChainArtifact {
             cmd: "doppelganger-parachain".into(),
@@ -1078,11 +1082,10 @@ mod test {
             spec_path: "/home/ubuntu/something-ah.json".into(),
             snap_path: "/home/ubuntu/something-ah.tgz".into(),
             override_wasm: None,
+            para_id: Some(1000),
         };
 
-        let network_config = generate_config(relay, vec![ah], None)
-            .await
-            .unwrap();
+        let network_config = generate_config(relay, vec![ah], None).await.unwrap();
 
         let toml = network_config.dump_to_toml().unwrap();
         println!("{toml}");

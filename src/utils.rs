@@ -130,8 +130,8 @@ pub fn get_validator_keys(count: usize) -> Vec<&'static ValidatorKeys> {
         &BOB_KEYS,
         &CHARLIE_KEYS,
         &DAVE_KEYS,
-        &EVE_KEYS,
         &FERDIE_KEYS,
+        &EVE_KEYS,
         &GEORGE_KEYS,
     ];
 
