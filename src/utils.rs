@@ -111,8 +111,8 @@ pub const FERDIE_KEYS: ValidatorKeys = ValidatorKeys {
     beefy: "0291f1217d5a04cb83312ee3d88a6e6b33284e053e6ccfc3a90339a0299d12967c",
 };
 
-pub const GEORGE_KEYS: ValidatorKeys = ValidatorKeys {
-    name: "george",
+pub const ONE_KEYS: ValidatorKeys = ValidatorKeys {
+    name: "one",
     stash: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     babe: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     grandpa: "6c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
@@ -131,7 +131,7 @@ pub fn get_validator_keys(count: usize) -> Vec<&'static ValidatorKeys> {
         &DAVE_KEYS,
         &FERDIE_KEYS,
         &EVE_KEYS,
-        &GEORGE_KEYS,
+        &ONE_KEYS,
     ];
 
     all_keys.into_iter().take(count).collect()
