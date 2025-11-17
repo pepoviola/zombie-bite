@@ -69,7 +69,7 @@ pub const BOB_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const CHARLIE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "charlie",
-    stash: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    stash: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
     babe: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
     grandpa: "439660b36c6c03afafca027b910b4fecf99801834c62a5e6006f27d978de234f",
     para_validator: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
@@ -80,7 +80,7 @@ pub const CHARLIE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const DAVE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "dave",
-    stash: "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48",
+    stash: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
     babe: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
     grandpa: "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
     para_validator: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
@@ -91,7 +91,7 @@ pub const DAVE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const EVE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "eve",
-    stash: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    stash: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
     babe: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
     grandpa: "b9d0ca094bd5b8b3225d7651eac5d18c1c04bf8ae8f8b263eebca4e1410ed0c0",
     para_validator: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
@@ -102,7 +102,7 @@ pub const EVE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const FERDIE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "ferdie",
-    stash: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    stash: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
     babe: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
     grandpa: "bc9d0ca094bd5b8b3225d7651eac5d18c1c04bf8ae8f8b263eebca4e1410ed0c",
     para_validator: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
@@ -113,7 +113,7 @@ pub const FERDIE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const GEORGE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "george",
-    stash: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    stash: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     babe: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     grandpa: "6c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
     para_validator: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
@@ -122,8 +122,8 @@ pub const GEORGE_KEYS: ValidatorKeys = ValidatorKeys {
     beefy: "036c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
 };
 
+
 /// Get the validator keys for the specified number of validators
-/// Returns keys for alice, bob, charlie, dave, eve, ferdie, george (max 7)
 pub fn get_validator_keys(count: usize) -> Vec<&'static ValidatorKeys> {
     let all_keys = [
         &ALICE_KEYS,

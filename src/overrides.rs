@@ -155,8 +155,8 @@ pub async fn generate_default_overrides_for_rc(
     relay: &Relaychain,
     paras: &Vec<Parachain>,
 ) -> PathBuf {
-    // Calculate required validators: 2 base + 1 per parachain (max 7)
-    let num_validators = (2 + paras.len()).min(7);
+    // Calculate required validators: 1 base + 1 per parachain (max 7)
+    let num_validators = (1 + paras.len()).min(7);
     let validator_keys = get_validator_keys(num_validators);
 
     let next_keys_injects = generate_next_keys_injects(&validator_keys);

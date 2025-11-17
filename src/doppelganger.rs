@@ -722,8 +722,8 @@ async fn generate_config(
         get_random_port().await
     };
 
-    // Calculate required validators: 2 base + 1 per parachain (max 7)
-    let num_validators = (2 + paras.len()).min(7);
+    // Calculate required validators: 1 base + 1 per parachain (max 7)
+    let num_validators = (1 + paras.len()).min(7);
 
     // Update the chain spec to include all required validators
     update_chain_spec_with_validators(&chain_spec_path, num_validators)
@@ -758,10 +758,10 @@ async fn generate_config(
                 .with_validator(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
                 .with_validator(|node| node.with_name("bob").with_rpc_port(rpc_bob_port));
 
-            let additional_validators = ["charlie", "dave","ferdie", "eve", "george"];
+            let additional_validators = ["charlie", "dave","ferdie", "eve","george"];
             for name in additional_validators
                 .iter()
-                .take(num_validators.saturating_sub(2))
+                 .take(num_validators.saturating_sub(1))
             {
                 relay_builder = relay_builder.with_validator(|node| node.with_name(*name));
             }
