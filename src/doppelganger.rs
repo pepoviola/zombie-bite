@@ -1029,19 +1029,32 @@ mod test {
             "--db-cache=24000, --trie-cache-size=24000, --runtime-cache-size=255",
         );
 
+        // Create dummy chain spec and snapshot files
+        let relay_spec_path = "/tmp/test-something.json";
+        let relay_snap_path = "/tmp/test-something.tgz";
+        let ah_spec_path = "/tmp/test-something-ah.json";
+        let ah_snap_path = "/tmp/test-something-ah.tgz";
+
+        // Minimal valid chain spec JSON
+        let minimal_spec = r#"{ "genesis": { "runtime": { "session": { "keys": [] }, "babe": { "authorities": [] }, "grandpa": { "authorities": [] }, "aura": { "authorities": [] } } } }"#;
+        std::fs::write(relay_spec_path, minimal_spec).unwrap();
+        std::fs::write(ah_spec_path, minimal_spec).unwrap();
+        std::fs::write(relay_snap_path, b"dummy").unwrap();
+        std::fs::write(ah_snap_path, b"dummy").unwrap();
+
         let relay = ChainArtifact {
             cmd: "doppelganger".into(),
             chain: "polkadot".into(),
-            spec_path: "/home/ubuntu/something.json".into(),
-            snap_path: "/home/ubuntu/something.tgz".into(),
+            spec_path: relay_spec_path.into(),
+            snap_path: relay_snap_path.into(),
             override_wasm: None,
             para_id: None,
         };
         let ah = ChainArtifact {
             cmd: "doppelganger-parachain".into(),
             chain: "ah-polkadot".into(),
-            spec_path: "/home/ubuntu/something-ah.json".into(),
-            snap_path: "/home/ubuntu/something-ah.tgz".into(),
+            spec_path: ah_spec_path.into(),
+            snap_path: ah_snap_path.into(),
             override_wasm: None,
             para_id: Some(1000),
         };
@@ -1049,7 +1062,6 @@ mod test {
         let network_config = generate_config(relay, vec![ah], None).await.unwrap();
 
         let toml = network_config.dump_to_toml().unwrap();
-        println!("{toml}");
         assert!(toml.contains("--db-cache=24000"));
     }
 }

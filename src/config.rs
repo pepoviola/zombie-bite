@@ -757,7 +757,7 @@ mod test {
                 maybe_rpc_endpoint: None
             }
             .id(),
-            1001
+            1004
         );
         assert_eq!(
             Parachain::BridgeHub {
@@ -997,11 +997,11 @@ mod test {
 
         let parachains = config.get_parachains();
         assert_eq!(parachains.len(), 2); // Only asset-hub and people should be enabled
-
+  
         // Check that the right parachains are included
         let para_ids: Vec<u32> = parachains.iter().map(|p| p.id()).collect();
         assert!(para_ids.contains(&1000)); // asset-hub
-        assert!(para_ids.contains(&1001)); // people
+        assert!(para_ids.contains(&1004)); // people
         assert!(!para_ids.contains(&1005)); // coretime (disabled)
     }
 
