@@ -70,7 +70,6 @@ pub fn generate_validator_overrides(
         .collect::<Vec<_>>()
         .join("");
 
-
     let validator_groups_count_hex = format!("{:02x}", num_validators * 4); // Each group entry is 4 bytes
     let validator_groups: String = (0..num_validators)
         .map(|i| format!("{:02x}000000", i))
@@ -88,7 +87,7 @@ pub fn generate_validator_overrides(
     let validator_count_hex = format!("{:02x}", num_validators * 4); // *4 because we encode each as 4 bytes
 
     let para_id_bytes = first_para_id.to_le_bytes();
-    let para_id_hex = array_bytes::bytes2hex("", &para_id_bytes);
+    let para_id_hex = array_bytes::bytes2hex("", para_id_bytes);
 
     // Build core descriptor for the first parachain
     let core_descriptor = format!("00010402{}00e100e100010000e1", para_id_hex);

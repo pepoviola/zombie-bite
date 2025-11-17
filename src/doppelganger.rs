@@ -33,7 +33,8 @@ use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
 use crate::utils::{
-    get_header_from_block, get_random_port, localize_config, para_head_key, HeadData,
+    get_header_from_block, get_random_port, get_validator_keys, localize_config, para_head_key,
+    HeadData,
 };
 
 use crate::config::{get_state_pruning_config, Context, Parachain, Relaychain, Step};
@@ -530,43 +531,8 @@ async fn update_chain_spec_with_validators(
     let spec_content = tokio::fs::read_to_string(chain_spec_path).await?;
     let mut spec: Value = serde_json::from_str(&spec_content)?;
 
-    let validators = [
-        (
-            "alice",
-            "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-            "5FA9nQDVg267DEd8m1ZypXLBnvN7SFxYwV7ndqSYGiN9TTpu",
-        ),
-        (
-            "bob",
-            "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
-            "5GoNkf6WdbxCFnPdAnYYQyCjAKPJgLNxXwPjwTh6DGg6gN3E",
-        ),
-        (
-            "charlie",
-            "5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y",
-            "5DbKjhNLpqX3zqZdNBc9BGb4fHU1cRBaDhJUskrvkwfraDi6",
-        ),
-        (
-            "dave",
-            "5DAAnrj7VHTznn2AWBemMuyBwZWs6FNFjdyVXUeYum3PTXFy",
-            "5HVTX4RkLgGDxmzYGLaBSHKPTJ2Sk8cDX7vD2NVsXWw8Jq3X",
-        ),
-        (
-            "ferdie",
-            "5CiPPseXPECbkjWCa6MnjNokrgYjMqmKndv2rSnekmSK2DjL",
-            "5D9MxoU6NVFGEVfWD2t68e2eKq3WGS9Q9jQgJJrRMWdD8PfM",
-        ),
-          (
-            "eve",
-            "5HGjWAeFDfFCWPsjFQdVV2Msvz2XtMktvgocEZcCj68kUMaw",
-            "5F5SbjU79vZyPgtqz8mXvLmPStxKDxZ4gw3FnD7qXKHjkMJh",
-        ),
-        (
-            "george",
-            "5F4tQyNE9tBZe5SEvcgD2fHsHVdFGVhViBfC4kKVEqAbqJBF",
-            "5D3dVFtj6cBx5F2nWiWC9X8aMLuQYPPjVZhXQmWmNGKdD9kk",
-        ),
-    ];
+    // Get validator keys from utils.rs (same keys used in overrides)
+    let validator_keys = get_validator_keys(num_validators);
 
     // Get genesis runtime config
     if let Some(genesis) = spec.get_mut("genesis") {
@@ -578,25 +544,23 @@ async fn update_chain_spec_with_validators(
                         // Keep existing keys and add new ones
                         keys_array.clear();
 
-                        for i in 0..num_validators {
-                            let (name, stash, controller) = validators[i];
-
-                            // For grandpa (ed25519) and babe/aura (sr25519), we use the controller key
+                        for validator in &validator_keys {
+                            // Use hex keys with 0x prefix for chain spec
                             keys_array.push(json!([
-                                stash,
-                                stash,
+                                format!("0x{}", validator.stash),
+                                format!("0x{}", validator.stash),
                                 {
-                                    "grandpa": controller,
-                                    "babe": controller,
-                                    "im_online": controller,
-                                    "para_validator": controller,
-                                    "para_assignment": controller,
-                                    "authority_discovery": controller,
-                                    "beefy": controller,
+                                    "grandpa": format!("0x{}", validator.grandpa),
+                                    "babe": format!("0x{}", validator.babe),
+                                    "im_online": format!("0x{}", validator.babe),
+                                    "para_validator": format!("0x{}", validator.para_validator),
+                                    "para_assignment": format!("0x{}", validator.para_assignment),
+                                    "authority_discovery": format!("0x{}", validator.authority_discovery),
+                                    "beefy": format!("0x{}", validator.beefy),
                                 }
                             ]));
 
-                            info!("Added session keys for validator: {}", name);
+                            info!("Added session keys for validator: {}", validator.name);
                         }
                     }
                 }
@@ -607,10 +571,9 @@ async fn update_chain_spec_with_validators(
                 if let Some(authorities) = babe.get_mut("authorities") {
                     if let Some(authorities_array) = authorities.as_array_mut() {
                         authorities_array.clear();
-                        for i in 0..num_validators {
-                            let (name, _, controller) = validators[i];
-                            authorities_array.push(json!([controller, 1]));
-                            info!("Added BABE authority: {}", name);
+                        for validator in &validator_keys {
+                            authorities_array.push(json!([format!("0x{}", validator.babe), 1]));
+                            info!("Added BABE authority: {}", validator.name);
                         }
                     }
                 }
@@ -621,10 +584,9 @@ async fn update_chain_spec_with_validators(
                 if let Some(authorities) = grandpa.get_mut("authorities") {
                     if let Some(authorities_array) = authorities.as_array_mut() {
                         authorities_array.clear();
-                        for i in 0..num_validators {
-                            let (name, _, controller) = validators[i];
-                            authorities_array.push(json!([controller, 1]));
-                            info!("Added GRANDPA authority: {}", name);
+                        for validator in &validator_keys {
+                            authorities_array.push(json!([format!("0x{}", validator.grandpa), 1]));
+                            info!("Added GRANDPA authority: {}", validator.name);
                         }
                     }
                 }
@@ -635,10 +597,9 @@ async fn update_chain_spec_with_validators(
                 if let Some(authorities) = aura.get_mut("authorities") {
                     if let Some(authorities_array) = authorities.as_array_mut() {
                         authorities_array.clear();
-                        for i in 0..num_validators {
-                            let (name, _, controller) = validators[i];
-                            authorities_array.push(json!(controller));
-                            info!("Added Aura authority: {}", name);
+                        for validator in &validator_keys {
+                            authorities_array.push(json!(format!("0x{}", validator.babe)));
+                            info!("Added Aura authority: {}", validator.name);
                         }
                     }
                 }
@@ -758,10 +719,10 @@ async fn generate_config(
                 .with_validator(|node| node.with_name("alice").with_rpc_port(rpc_alice_port))
                 .with_validator(|node| node.with_name("bob").with_rpc_port(rpc_bob_port));
 
-            let additional_validators = ["charlie", "dave","ferdie", "eve","george"];
+            let additional_validators = ["charlie", "dave", "ferdie", "eve", "george"];
             for name in additional_validators
                 .iter()
-                 .take(num_validators.saturating_sub(1))
+                .take(num_validators.saturating_sub(1))
             {
                 relay_builder = relay_builder.with_validator(|node| node.with_name(*name));
             }

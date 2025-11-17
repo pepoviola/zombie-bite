@@ -122,7 +122,6 @@ pub const GEORGE_KEYS: ValidatorKeys = ValidatorKeys {
     beefy: "036c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
 };
 
-
 /// Get the validator keys for the specified number of validators
 pub fn get_validator_keys(count: usize) -> Vec<&'static ValidatorKeys> {
     let all_keys = [
