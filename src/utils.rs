@@ -69,7 +69,7 @@ pub const BOB_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const CHARLIE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "charlie",
-    stash: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
+    stash: "1e07379407fecc4b89eb7dbd287c2c781cfb1907a96947a3eb18e4f8e7198625",
     babe: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
     grandpa: "439660b36c6c03afafca027b910b4fecf99801834c62a5e6006f27d978de234f",
     para_validator: "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22",
@@ -80,9 +80,9 @@ pub const CHARLIE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const DAVE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "dave",
-    stash: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
+    stash: "e860f1b1c7227f7c22602f53f15af80747814dffd839719731ee3bba6edc126c",
     babe: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
-    grandpa: "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c",
+    grandpa: "5e639b43e0052c47447dac87d6fd2b6ec50bdd4d0f614e4299c665249bbd09d9",
     para_validator: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
     para_assignment: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
     authority_discovery: "306721211d5404bd9da88e0204360a1a9ab8b87c66c1bc2fcdd37f3c2222cc20",
@@ -91,9 +91,9 @@ pub const DAVE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const EVE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "eve",
-    stash: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
+    stash: "8ac59e11963af19174d0b94d5d78041c233f55d2e19324665bafdfb62925af2d",
     babe: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
-    grandpa: "b9d0ca094bd5b8b3225d7651eac5d18c1c04bf8ae8f8b263eebca4e1410ed0c0",
+    grandpa: "1dfe3e22cc0d45c70779c1095f7489a8ef3cf52d62fbd8c2fa38c9f1723502b5",
     para_validator: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
     para_assignment: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
     authority_discovery: "e659a7a1628cdd93febc04a4e0646ea20e9f5f0ce097d9a05290d4a9e054df4e",
@@ -102,9 +102,9 @@ pub const EVE_KEYS: ValidatorKeys = ValidatorKeys {
 
 pub const FERDIE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "ferdie",
-    stash: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
+    stash: "101191192fc877c24d725b337120fa3edc63d227bbc92705db1e2cb65f56981a",
     babe: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
-    grandpa: "bc9d0ca094bd5b8b3225d7651eac5d18c1c04bf8ae8f8b263eebca4e1410ed0c",
+    grandpa: "568cb4a574c6d178feb39c27dfc8b3f789e5f5423e19c71633c748b9acf086b5",
     para_validator: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
     para_assignment: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
     authority_discovery: "1cbd2d43530a44705ad088af313e18f80b53ef16b36177cd4b77b846f2a5f07c",
@@ -115,7 +115,7 @@ pub const ONE_KEYS: ValidatorKeys = ValidatorKeys {
     name: "one",
     stash: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     babe: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
-    grandpa: "6c6ae73d36d0c02b54d7877a57b1734b8e096134bd2c1b829431aa38f18bcce1",
+    grandpa: "16f97016bbea8f7b45ae6757b49efc1080accc175d8f018f9ba719b60b0815e4",
     para_validator: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     para_assignment: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",
     authority_discovery: "ac859f8a216eeb1b320b4c76d118da3d7407fa523484d0a980126d3b4d0d220a",

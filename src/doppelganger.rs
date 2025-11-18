@@ -683,7 +683,8 @@ async fn generate_config(
         get_random_port().await
     };
 
-    let num_validators = paras.len().min(7);
+    // Alice + Bob + number of parachains
+    let num_validators = (2 + paras.len()).min(7);
 
     // Update the chain spec to include all required validators
     update_chain_spec_with_validators(&chain_spec_path, num_validators)

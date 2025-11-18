@@ -997,7 +997,7 @@ mod test {
 
         let parachains = config.get_parachains();
         assert_eq!(parachains.len(), 2); // Only asset-hub and people should be enabled
-  
+
         // Check that the right parachains are included
         let para_ids: Vec<u32> = parachains.iter().map(|p| p.id()).collect();
         assert!(para_ids.contains(&1000)); // asset-hub
