@@ -33,7 +33,7 @@ use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
 use crate::utils::{
-    get_header_from_block, get_random_port, get_validator_keys, localize_config, para_head_key,
+    get_header_from_block, get_random_port, localize_config, para_head_key,
     HeadData,
 };
 
@@ -301,6 +301,7 @@ pub async fn doppelganger_inner(
     let mut ready_content = json!({
         "rc_start_block": rc_start_block,
     });
+
     // Add all parachain start blocks
     for (key, value) in para_start_blocks {
         ready_content[key] = value;
@@ -325,13 +326,11 @@ pub async fn doppelganger_inner(
     }
 
     // ports
-    let mut ports_content = json!({
-        "alice_port" : alice_config.rpc_port().unwrap(),
-    });
-    // Add all collator ports
-    for (key, value) in collator_ports {
-        ports_content[key] = value;
-    }
+    collator_ports.insert(
+        "alice_port".to_string(),
+        serde_json::Value::Number(alice_config.rpc_port().unwrap().into()),
+    );
+    let ports_content = serde_json::Value::Object(collator_ports);
 
     let _ = fs::write(
         format!("{}/{PORTS_FILE}", global_base_dir.to_string_lossy()),
@@ -478,7 +477,6 @@ pub async fn clean_up_dir_for_step(
     let rc_spec = format!("{}-spec.json", rc.as_chain_string());
     let rc_snap = format!("{}-snap.tgz", rc.as_chain_string());
     let alice_snap = format!("alice-{}-snap.tgz", rc.as_chain_string());
-    let bob_snap = format!("bob-{}-snap.tgz", rc.as_chain_string());
 
     let mut needed_files: Vec<String> = vec!["config.toml".to_string(), rc_spec.clone()];
 
@@ -495,7 +493,6 @@ pub async fn clean_up_dir_for_step(
         needed_files.push(rc_snap);
     } else {
         needed_files.push(alice_snap);
-        needed_files.push(bob_snap);
     }
 
     for file in &needed_files {
@@ -507,114 +504,6 @@ pub async fn clean_up_dir_for_step(
             .unwrap_or_else(|e| panic!("Failed to move {from} to {to}: {e}"));
     }
 
-    Ok(())
-}
-
-/// Update chain spec to include additional validators beyond alice and bob
-async fn update_chain_spec_with_validators(
-    chain_spec_path: &Path,
-    num_validators: usize,
-) -> Result<(), anyhow::Error> {
-    use serde_json::Value;
-
-    if num_validators <= 2 {
-        // No need to update, alice and bob are already in the spec
-        return Ok(());
-    }
-
-    info!(
-        "Updating chain spec to include {} validators",
-        num_validators
-    );
-
-    // Read the chain spec
-    let spec_content = tokio::fs::read_to_string(chain_spec_path).await?;
-    let mut spec: Value = serde_json::from_str(&spec_content)?;
-
-    // Get validator keys from utils.rs (same keys used in overrides)
-    let validator_keys = get_validator_keys(num_validators);
-
-    // Get genesis runtime config
-    if let Some(genesis) = spec.get_mut("genesis") {
-        if let Some(runtime) = genesis.get_mut("runtime") {
-            // Update session keys
-            if let Some(session) = runtime.get_mut("session") {
-                if let Some(keys) = session.get_mut("keys") {
-                    if let Some(keys_array) = keys.as_array_mut() {
-                        // Keep existing keys and add new ones
-                        keys_array.clear();
-
-                        for validator in &validator_keys {
-                            // Use hex keys with 0x prefix for chain spec
-                            keys_array.push(json!([
-                                format!("0x{}", validator.stash),
-                                format!("0x{}", validator.stash),
-                                {
-                                    "grandpa": format!("0x{}", validator.grandpa),
-                                    "babe": format!("0x{}", validator.babe),
-                                    "im_online": format!("0x{}", validator.babe),
-                                    "para_validator": format!("0x{}", validator.para_validator),
-                                    "para_assignment": format!("0x{}", validator.para_assignment),
-                                    "authority_discovery": format!("0x{}", validator.authority_discovery),
-                                    "beefy": format!("0x{}", validator.beefy),
-                                }
-                            ]));
-
-                            info!("Added session keys for validator: {}", validator.name);
-                        }
-                    }
-                }
-            }
-
-            // Update BABE authorities
-            if let Some(babe) = runtime.get_mut("babe") {
-                if let Some(authorities) = babe.get_mut("authorities") {
-                    if let Some(authorities_array) = authorities.as_array_mut() {
-                        authorities_array.clear();
-                        for validator in &validator_keys {
-                            authorities_array.push(json!([format!("0x{}", validator.babe), 1]));
-                            info!("Added BABE authority: {}", validator.name);
-                        }
-                    }
-                }
-            }
-
-            // Update GRANDPA authorities
-            if let Some(grandpa) = runtime.get_mut("grandpa") {
-                if let Some(authorities) = grandpa.get_mut("authorities") {
-                    if let Some(authorities_array) = authorities.as_array_mut() {
-                        authorities_array.clear();
-                        for validator in &validator_keys {
-                            authorities_array.push(json!([format!("0x{}", validator.grandpa), 1]));
-                            info!("Added GRANDPA authority: {}", validator.name);
-                        }
-                    }
-                }
-            }
-
-            // Update Aura authorities if present (for some chains instead of BABE)
-            if let Some(aura) = runtime.get_mut("aura") {
-                if let Some(authorities) = aura.get_mut("authorities") {
-                    if let Some(authorities_array) = authorities.as_array_mut() {
-                        authorities_array.clear();
-                        for validator in &validator_keys {
-                            authorities_array.push(json!(format!("0x{}", validator.babe)));
-                            info!("Added Aura authority: {}", validator.name);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Write the updated chain spec back
-    let updated_spec = serde_json::to_string_pretty(&spec)?;
-    tokio::fs::write(chain_spec_path, updated_spec).await?;
-
-    info!(
-        "Chain spec updated successfully with {} validators",
-        num_validators
-    );
     Ok(())
 }
 
@@ -685,11 +574,6 @@ async fn generate_config(
 
     // Alice + Bob + number of parachains
     let num_validators = (2 + paras.len()).min(7);
-
-    // Update the chain spec to include all required validators
-    update_chain_spec_with_validators(&chain_spec_path, num_validators)
-        .await
-        .map_err(|e| format!("Failed to update chain spec: {}", e))?;
 
     // config a new network with dynamic validators
     let mut config = NetworkConfigBuilder::new().with_relaychain(|r| {
@@ -804,7 +688,7 @@ async fn generate_config(
 
             config = config.with_parachain(|p| {
                 let para_builder = p
-                    .with_id(para.para_id.unwrap_or(1000))
+                    .with_id(para.para_id.expect("Para id should be available"))
                     .with_chain(para.chain.as_str())
                     .with_default_command(para.cmd.as_str())
                     .with_chain_spec_path(chain_spec_path)

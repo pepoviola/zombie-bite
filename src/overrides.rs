@@ -25,7 +25,7 @@ pub fn generate_next_keys_injects(
 /// Generate the storage overrides for relay chain validators
 pub fn generate_validator_overrides(
     validator_keys: &[&crate::utils::ValidatorKeys],
-    first_para_id: u32,
+    paras: &[&Parachain],
 ) -> serde_json::Value {
     let num_validators = validator_keys.len();
 
@@ -86,26 +86,18 @@ pub fn generate_validator_overrides(
     // Format validator count as compact encoded
     let validator_count_hex = format!("{:02x}", num_validators * 4); // *4 because we encode each as 4 bytes
 
+    let first_para_id = paras.first().map(|p| p.id()).unwrap_or(1000);
     let para_id_bytes = first_para_id.to_le_bytes();
     let para_id_hex = array_bytes::bytes2hex("", para_id_bytes);
 
     // Build core descriptor for the first parachain
     let core_descriptor = format!("00010402{}00e100e100010000e1", para_id_hex);
 
-    // Build DMP and HRMP storage keys with the parachain ID
-    let dmp_queue_key = format!(
-        "63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5b6ff6f7d467b87a9{}",
-        para_id_hex
-    );
-    let hrmp_channels_key = format!(
-        "6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948b6ff6f7d467b87a9{}",
-        para_id_hex
-    );
-
     // Build paras parachains list (just the first para)
     let paras_parachains = format!("04{}", para_id_hex);
 
-    json!({
+    // Build base overrides object
+    let mut overrides = json!({
         // Validator Validators (dynamic list)
         "7d9fe37370ac390779f35763d98106e888dcde934c658227ee1dfafcd6e16903": format!("{}{}", validator_count_hex, stash_list),
         // Session Validators (dynamic list)
@@ -142,11 +134,29 @@ pub fn generate_validator_overrides(
         "94eadf0156a8ad5156507773d0471e4ab8ebad86f546c7e0b135a4212aace339": "0400",
         // Sudo Key (Alice)
         "5c0d1176a568c1f92944340dbfed9e9c530ebca703c85910e7164cb7d1c9e47b": "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
-        // DMP downwardMessageQueueHeads (empty for para)
-        dmp_queue_key: "0000000000000000000000000000000000000000000000000000000000000000",
-        // HRMP hrmpIngressChannelsIndex (empty for para)
-        hrmp_channels_key: "00",
-    })
+    });
+
+    // Add DMP and HRMP storage keys for each parachain
+    for para in paras {
+        let para_id_bytes = para.id().to_le_bytes();
+        let para_id_hex = array_bytes::bytes2hex("", para_id_bytes);
+        
+        // DMP downwardMessageQueueHeads (empty for each para)
+        let dmp_queue_key = format!(
+            "63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5b6ff6f7d467b87a9{}",
+            para_id_hex
+        );
+        overrides[dmp_queue_key] = json!("0000000000000000000000000000000000000000000000000000000000000000");
+        
+        // HRMP hrmpIngressChannelsIndex (empty for each para)
+        let hrmp_channels_key = format!(
+            "6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948b6ff6f7d467b87a9{}",
+            para_id_hex
+        );
+        overrides[hrmp_channels_key] = json!("00");
+    }
+
+    overrides
 }
 
 pub async fn generate_default_overrides_for_rc(
@@ -160,22 +170,9 @@ pub async fn generate_default_overrides_for_rc(
 
     let next_keys_injects = generate_next_keys_injects(&validator_keys);
 
-    // Get the first parachain ID for parachain-specific overrides
-    let first_para_id = paras.first().map(|p| p.id()).unwrap_or(1000);
-
-    // Generate the validator overrides
-    let mut overrides = generate_validator_overrides(&validator_keys, first_para_id);
-
-    // Build DMP and HRMP storage keys with the parachain ID
-    let para_id_hex = format!("{:08x}", first_para_id.to_le());
-    let dmp_queue_key = format!(
-        "63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5b6ff6f7d467b87a9{}",
-        para_id_hex
-    );
-    let hrmp_channels_key = format!(
-        "6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948b6ff6f7d467b87a9{}",
-        para_id_hex
-    );
+    // Generate the validator overrides with parachains
+    let paras_refs: Vec<&Parachain> = paras.iter().collect();
+    let mut overrides = generate_validator_overrides(&validator_keys, &paras_refs);
 
     // Keys to inject (mostly storage maps that are not present in the current state)
     // <Pallet> < Item>
@@ -184,11 +181,6 @@ pub async fn generate_default_overrides_for_rc(
     // RcMigrator Manager (set //Alice by default)
     injects["2185d18cb42ae97242af0e70e6ad689012fcd13ee43ae32cc87f798eb5ed3295"] =
         json!("d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d");
-
-    // Add DMP and HRMP overrides dynamically (empty queues for the parachain)
-    overrides[&dmp_queue_key] =
-        json!("0000000000000000000000000000000000000000000000000000000000000000");
-    overrides[&hrmp_channels_key] = json!("00");
 
     // update the overrides / injects map to use IFF the key is provided
     if let Ok(sudo_key) = env::var("ZOMBIE_SUDO") {
@@ -384,7 +376,9 @@ mod test {
     fn test_generate_validator_overrides() {
         // Just 2 is alice and bob
         let validator_keys = get_validator_keys(2);
-        let overrides = generate_validator_overrides(&validator_keys, 1000);
+        let para = crate::config::Parachain::new("asset-hub");
+        let paras = vec![&para];
+        let overrides = generate_validator_overrides(&validator_keys, &paras);
 
         // Validator Validators
         assert_eq!(
