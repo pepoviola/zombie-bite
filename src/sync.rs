@@ -19,6 +19,7 @@ use zombienet_support::net::wait_ws_ready;
 const PASEO_ASSET_HUB_SPEC_URL: &str =
     "https://paseo-r2.zondax.ch/chain-specs/paseo-asset-hub.json";
 
+#[allow(clippy::too_many_arguments)]
 pub async fn sync_relay_only(
     ns: DynNamespace,
     cmd: impl AsRef<str>,

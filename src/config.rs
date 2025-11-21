@@ -470,15 +470,14 @@ pub fn generate_network_config(
         };
         let chain = format!("{}-{}",chain_part, relay_chain);
 
+        let collator_name = format!("Collator-{}", id);
         builder.with_parachain(|p| {
             p.with_id(id)
                 .with_default_command(para_context.cmd().as_str())
                 .with_chain(chain.as_str())
                 .with_chain_spec_command(chain_spec_cmd)
                 .with_collator(|c| {
-                    // TODO: use single collator for now
-                    // c.with_name(&format!("col-{}",id))
-                    let col_builder = c.with_name("collator")
+                    let col_builder = c.with_name(&collator_name)
                     .with_args(vec![
                         ("-l", "aura=debug,runtime=trace,cumulus-consensus=trace,consensus::common=trace,parachain::collation-generation=trace,parachain::collator-protocol=trace,parachain=debug,basic-authorship=trace").into(),
                         "--force-authoring".into()

@@ -7,7 +7,7 @@ use clap::Parser;
 use futures::StreamExt;
 use tracing::{debug, info, level_filters::LevelFilter, trace, warn};
 use tracing_subscriber::EnvFilter;
-use zombienet_sdk::{LocalFileSystem, Network};
+use zombienet_sdk::{LocalFileSystem, Network, NetworkNode};
 
 mod cli;
 mod config;
@@ -52,13 +52,21 @@ async fn resolve_if_dir_exist(base_path: &Path, step: Step) {
 }
 
 async fn ensure_startup_producing_blocks(network: &Network<LocalFileSystem>) {
-    // IFF we have a collator, wait until the collator reply the metrics
-    if let Ok(collator) = network.get_node("collator") {
-        let _ = collator
-            .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
-            .await
-            .unwrap();
-    }
+    // first wait until the collator replies with metrics
+    let parachains = network.parachains();
+    let para = parachains
+        .first()
+        .expect("At least one parachain should exist");
+    let collators = para.collators();
+    let collator = collators
+        .first()
+        .expect("At least one collator should exist");
+    debug!("Waiting metrics for collator {}", collator.name());
+
+    collator
+        .wait_metric_with_timeout("node_roles", |x| x > 1.0, 300_u64)
+        .await
+        .unwrap();
 
     // ensure block production
     let client = network
@@ -84,13 +92,19 @@ async fn post_spawn_loop(
     if with_monitor {
         let alice = network.get_node("alice")?;
         let bob = network.get_node("bob")?;
-        let collator = if let Ok(collator) = network.get_node("collator") {
-            Some(collator)
-        } else {
-            None
-        };
 
-        monit_progress(alice, bob, collator, Some(stop_file)).await;
+        let parachains = network.parachains();
+        let collator_opt: Option<&NetworkNode> = parachains
+            .first()
+            .and_then(|para| para.collators().first().copied());
+
+        if let Some(col) = collator_opt {
+            debug!("Will monitor collator {} for progress...", col.name());
+        } else {
+            debug!("No collator found, monitoring only validators");
+        }
+
+        monit_progress(alice, bob, collator_opt, Some(stop_file)).await;
     } else {
         while let Ok(false) = fs::try_exists(&stop_file).await {
             tokio::time::sleep(Duration::from_secs(60)).await;
@@ -169,6 +183,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 resolved_config.base_path.clone(),
                 resolved_config.relaychain,
                 resolved_config.parachains,
+                &database,
             )
             .await
             .expect("bite should work");

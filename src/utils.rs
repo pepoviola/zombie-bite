@@ -137,6 +137,58 @@ pub fn get_validator_keys(count: usize) -> Vec<&'static ValidatorKeys> {
     all_keys.into_iter().take(count).collect()
 }
 
+/// Generate collator keys from a seed string using specified algorithm
+/// Returns the Aura key as a hex string
+/// - "ed" for ed25519 (used by Polkadot)
+/// - "sr" for sr25519 (used by Kusama, Paseo, etc.)
+pub fn generate_collator_key_from_seed(seed: &str, key_type: &str) -> String {
+    use sp_core::{ed25519, sr25519, Pair};
+
+    match key_type {
+        "ed" => {
+            let pair = ed25519::Pair::from_string(&format!("//{}", seed), None)
+                .expect("Failed to generate ed25519 key from seed");
+            let public = pair.public();
+            let bytes: &[u8] = public.as_ref();
+            hex::encode(bytes)
+        }
+        "sr" => {
+            let pair = sr25519::Pair::from_string(&format!("//{}", seed), None)
+                .expect("Failed to generate sr25519 key from seed");
+            let public = pair.public();
+            let bytes: &[u8] = public.as_ref();
+            hex::encode(bytes)
+        }
+        _ => panic!("Unsupported key type: {}. Use 'ed' or 'sr'", key_type),
+    }
+}
+
+/// Generate Session.NextKeys injects for a collator
+/// Returns a JSON object with storage keys mapped to the collator's session keys
+/// The hash is calculated from the collator key bytes
+pub fn generate_collator_next_keys_injects(_seed: &str, collator_key: &str) -> serde_json::Value {
+    // Hash the collator key bytes for the storage key prefix
+    let key_bytes = hex::decode(collator_key).expect("collator key should be valid hex");
+    let stash_hash = array_bytes::bytes2hex("", &subhasher::twox64_concat(&key_bytes)[..8]);
+
+    // Session.NextKeys storage key
+    let session_next_keys = format!(
+        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb3{}{}",
+        stash_hash, collator_key
+    );
+
+    // Session.KeyOwner storage key for Aura
+    let session_key_owner = format!(
+        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180{}",
+        collator_key
+    );
+
+    serde_json::json!({
+        session_next_keys: collator_key,
+        session_key_owner: collator_key
+    })
+}
+
 /// Parachain id.
 ///
 /// This is an equivalent of the `polkadot_parachain_primitives::Id`, which is a compact-encoded
@@ -426,5 +478,109 @@ mod test {
             .db_snapshot()
             .unwrap()
             .to_string();
+    }
+
+    #[test]
+    fn test_generate_collator_key_from_seed() {
+        let key1 = generate_collator_key_from_seed("collator-1000", "sr");
+        let key2 = generate_collator_key_from_seed("collator-1005", "sr");
+
+        // Keys should be different
+        assert_ne!(key1, key2);
+
+        // Keys should be valid hex and 64 characters (32 bytes)
+        assert_eq!(key1.len(), 64);
+        assert_eq!(key2.len(), 64);
+
+        // Same seed should generate same key
+        let key1_again = generate_collator_key_from_seed("collator-1000", "sr");
+        assert_eq!(key1, key1_again);
+
+        // Test both key types with "Collator" seed
+        let collator_key_sr = generate_collator_key_from_seed("Collator", "sr");
+        let collator_key_ed = generate_collator_key_from_seed("Collator", "ed");
+
+        // Expected keys for "Collator" seed (based on ZombieNet SDK implementation)
+        assert_eq!(
+            collator_key_sr,
+            "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15"
+        );
+        assert_eq!(
+            collator_key_ed,
+            "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116"
+        );
+
+        // Keys should be different for different algorithms
+        assert_ne!(collator_key_sr, collator_key_ed);
+
+        println!("Collator key (sr25519/Kusama): {}", collator_key_sr);
+        println!("Collator key (ed25519/Polkadot): {}", collator_key_ed);
+    }
+
+    #[tokio::test]
+    async fn test_generate_collator_injects_for_polkadot() {
+        // Test Polkadot (ed25519)
+        let polkadot_key = generate_collator_key_from_seed("Collator", "ed");
+        let injects = generate_collator_next_keys_injects("Collator", &polkadot_key);
+
+        // Expected key for Polkadot with "Collator" seed (ed25519)
+        assert_eq!(
+            polkadot_key,
+            "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116"
+        );
+
+        // Verify injects structure
+        assert!(injects.is_object());
+        let obj = injects.as_object().unwrap();
+        assert_eq!(obj.len(), 2);
+
+        // Both storage entries should map to the collator key
+        for (storage_key, value) in obj.iter() {
+            assert!(storage_key.starts_with("cec5070d609dd3497f72bde07fc96ba0"));
+            assert_eq!(value.as_str().unwrap(), polkadot_key);
+        }
+
+        let expected_injects = json!({
+            // Session Nextkeys for `collator` (hash is from Polkadot ed25519 key bytes)
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39d822490da82ebc3eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+            // Session KeyOwner
+            "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
+        });
+
+        assert_eq!(injects, expected_injects);
+    }
+
+    #[tokio::test]
+    async fn test_generate_collator_injects_for_kusama() {
+        // Test Kusama (sr25519)
+        let kusama_key = generate_collator_key_from_seed("Collator", "sr");
+        let injects = generate_collator_next_keys_injects("Collator", &kusama_key);
+
+        // Expected key for Kusama with "Collator" seed
+        assert_eq!(
+            kusama_key,
+            "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15"
+        );
+
+        // Verify injects structure
+        assert!(injects.is_object());
+        let obj = injects.as_object().unwrap();
+        assert_eq!(obj.len(), 2);
+
+        // Both storage entries should map to the Collator key
+        for (storage_key, value) in obj.iter() {
+            assert!(storage_key.starts_with("cec5070d609dd3497f72bde07fc96ba0"));
+            assert_eq!(value.as_str().unwrap(), kusama_key);
+        }
+
+        let expected_injects = json!({
+            // Session Nextkeys for `Collator`
+            "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+
+            // Session KeyOwner
+            "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+        });
+
+        assert_eq!(injects, expected_injects);
     }
 }

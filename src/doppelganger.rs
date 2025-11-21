@@ -33,8 +33,7 @@ use zombienet_provider::Provider;
 use zombienet_support::fs::local::LocalFileSystem;
 
 use crate::utils::{
-    get_header_from_block, get_random_port, localize_config, para_head_key,
-    HeadData,
+    get_header_from_block, get_random_port, localize_config, para_head_key, HeadData,
 };
 
 use crate::config::{get_state_pruning_config, Context, Parachain, Relaychain, Step};
@@ -365,31 +364,28 @@ pub async fn generate_artifacts(
 ) -> Result<(), anyhow::Error> {
     let global_base_dir_str = global_base_dir.to_string_lossy();
 
+    // Load the config from the previous step to get parachain information
+    let from_config_path = format!("{global_base_dir_str}/{}/config.toml", step.dir_from());
+
+    // Parse config to get parachain information
+    let network_config = zombienet_configuration::NetworkConfig::load_from_toml(&from_config_path)
+        .expect("should be able to load config");
+
     // generate snapshot for alice (rc)
     let alice_data = format!("{global_base_dir_str}/{}/alice/data", step.dir());
-
-    // // remove `parachains` db
-    // let parachains_path = format!("{alice_data}/chains/{}/db/full/parachains", rc.as_chain_string());
-    // debug!("Deleting `parachains` db at {parachains_path}");
-    // fs::remove_dir_all(parachains_path)
-    //     .await
-    //     .expect("remove parachains db should work");
 
     let alice_rc_snap_file = format!("alice-{}-snap.tgz", rc.as_chain_string());
     let alice_rc_snap_path = format!("{global_base_dir_str}/{}/{alice_rc_snap_file}", step.dir());
     generate_snap(&alice_data, &alice_rc_snap_path).await?;
 
-    // generate snapshot for alice (rc)
+    // generate snapshot for bob (rc)
     let bob_data = format!("{global_base_dir_str}/{}/bob/data", step.dir());
     let bob_rc_snap_file = format!("bob-{}-snap.tgz", rc.as_chain_string());
     let bob_rc_snap_path = format!("{global_base_dir_str}/{}/{bob_rc_snap_file}", step.dir());
     generate_snap(&bob_data, &bob_rc_snap_path).await?;
 
-    // generate snapshot for collator
-    let collator_data = format!("{global_base_dir_str}/{}/collator/data", step.dir());
-    let ah_snap_file = format!("asset-hub-{}-snap.tgz", rc.as_chain_string());
-    let ah_snap_path = format!("{global_base_dir_str}/{}/{ah_snap_file}", step.dir());
-    generate_snap(&collator_data, &ah_snap_path).await?;
+    let mut snaps = vec![alice_rc_snap_path, bob_rc_snap_path];
+    let mut specs = vec![];
 
     // cp chain-spec for rc
     let rc_spec_file = format!("{}-spec.json", rc.as_chain_string());
@@ -398,17 +394,39 @@ pub async fn generate_artifacts(
     fs::copy(&rc_spec_from, &rc_spec_to)
         .await
         .expect("cp should work");
+    specs.push(rc_spec_to);
 
-    // cp chain-spec for ah
-    let ah_spec_file = format!("asset-hub-{}-spec.json", rc.as_chain_string());
-    let ah_spec_from = format!("{global_base_dir_str}/{}/{ah_spec_file}", step.dir_from());
-    let ah_spec_to = format!("{global_base_dir_str}/{}/{ah_spec_file}", step.dir());
-    fs::copy(&ah_spec_from, &ah_spec_to)
-        .await
-        .expect("cp should work");
+    // Generate snapshots and copy chain-specs for all parachains
+    for para_config in network_config.parachains() {
+        let para_id = para_config.id();
+        let para_chain = para_config.chain().expect("parachain should have a chain");
+        let para_chain_str = para_chain.as_str();
+        let collator_name = format!("Collator-{}", para_id);
 
-    let mut snaps = vec![alice_rc_snap_path, bob_rc_snap_path, ah_snap_path];
-    let mut specs = vec![rc_spec_to, ah_spec_to];
+        // generate snapshot for this parachain's collator
+        let collator_data = format!(
+            "{global_base_dir_str}/{}/{}/data",
+            step.dir(),
+            collator_name
+        );
+        let para_snap_file = format!("{}-snap.tgz", para_chain_str);
+        let para_snap_path = format!("{global_base_dir_str}/{}/{}", step.dir(), para_snap_file);
+        generate_snap(&collator_data, &para_snap_path).await?;
+        snaps.push(para_snap_path);
+
+        // cp chain-spec for this parachain
+        let para_spec_file = format!("{}-spec.json", para_chain_str);
+        let para_spec_from = format!(
+            "{global_base_dir_str}/{}/{}",
+            step.dir_from(),
+            para_spec_file
+        );
+        let para_spec_to = format!("{global_base_dir_str}/{}/{}", step.dir(), para_spec_file);
+        fs::copy(&para_spec_from, &para_spec_to)
+            .await
+            .expect("cp should work");
+        specs.push(para_spec_to);
+    }
 
     // generate custom config
     let from_config_path = format!("{global_base_dir_str}/{}/config.toml", step.dir_from());
@@ -698,16 +716,19 @@ async fn generate_config(
                 }
             }
 
+            let para_id = para.para_id.expect("Para id should be available");
+            let collator_name = format!("Collator-{}", para_id);
+
             config = config.with_parachain(|p| {
                 let para_builder = p
-                    .with_id(para.para_id.expect("Para id should be available"))
+                    .with_id(para_id)
                     .with_chain(para.chain.as_str())
                     .with_default_command(para.cmd.as_str())
                     .with_chain_spec_path(chain_spec_path)
                     .with_default_db_snapshot(db_path);
 
                 para_builder.with_collator(|c| {
-                    c.with_name("collator")
+                    c.with_name(&collator_name)
                         .with_rpc_port(para_rpc_port)
                         .with_args(para_default_args)
                 })

@@ -1,9 +1,15 @@
-use crate::config::{Parachain, Relaychain};
-use crate::utils::{get_validator_keys, ValidationCode};
 use codec::Encode;
 use serde_json::{json, Value};
 use std::{env, path::PathBuf};
 use tokio::fs;
+
+use crate::{
+    config::{Parachain, Relaychain},
+    utils::{
+        generate_collator_key_from_seed, generate_collator_next_keys_injects, get_validator_keys,
+        ValidationCode,
+    },
+};
 
 /// Generate the injects for Session.NextKeys storage overrides for validators
 pub fn generate_next_keys_injects(
@@ -140,14 +146,15 @@ pub fn generate_validator_overrides(
     for para in paras {
         let para_id_bytes = para.id().to_le_bytes();
         let para_id_hex = array_bytes::bytes2hex("", para_id_bytes);
-        
+
         // DMP downwardMessageQueueHeads (empty for each para)
         let dmp_queue_key = format!(
             "63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5b6ff6f7d467b87a9{}",
             para_id_hex
         );
-        overrides[dmp_queue_key] = json!("0000000000000000000000000000000000000000000000000000000000000000");
-        
+        overrides[dmp_queue_key] =
+            json!("0000000000000000000000000000000000000000000000000000000000000000");
+
         // HRMP hrmpIngressChannelsIndex (empty for each para)
         let hrmp_channels_key = format!(
             "6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948b6ff6f7d467b87a9{}",
@@ -257,23 +264,18 @@ pub async fn generate_default_overrides_for_para(
     para: &Parachain,
     relay: &Relaychain,
 ) -> PathBuf {
-    // asset-hub-polkadot use ed key
-    let key_to_use = if relay.as_chain_string() == "polkadot" {
-        "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116"
-    } else {
-        "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15"
+    // Determine key type based on relay chain: ed25519 for Polkadot, sr25519 for others
+    let key_type = match relay {
+        Relaychain::Polkadot { .. } => "ed",
+        _ => "sr", // Kusama, Paseo, etc.
     };
 
-    // Keys to inject (mostly storage maps that are not present in the current state)
-    let injects = json!({
-        // Session Nextkeys for `collator`
-        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-        "cec5070d609dd3497f72bde07fc96ba04c014e6bf8b8c2c011e7290b85696bb39af53646681828f1005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
+    // Generate collator key using "Collator-{para_id}" as seed
+    let seed = format!("Collator-{}", para.id());
+    let key_to_use = generate_collator_key_from_seed(&seed, key_type);
 
-        // Session KeyOwner
-        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116": "eb2f4b5e6f0bfa7ba42aa4b7eb2f43ba6c42061dbfc765bca066e51bb09f9116",
-        "cec5070d609dd3497f72bde07fc96ba0726380404683fc89e8233450c8aa1950eab3d4a1675d3d746175726180005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15": "005025ef7c9934c33534cbff35c9c5f0c1d30128e64f076c76942f49788eec15",
-    });
+    // Generate the injects using the helper function
+    let injects = generate_collator_next_keys_injects(&seed, &key_to_use);
 
     // <Pallet> <Item>
     // e.g Validator Validators
