@@ -27,6 +27,7 @@ pub async fn sync_relay_only(
     overrides_path: PathBuf,
     info_path: impl AsRef<str>,
     maybe_target_header: Option<String>,
+    database: &str,
 ) -> Result<(DynNode, String, String), ()> {
     debug!("paras: \n {:?}", para_heads_env);
     let sync_db_path = format!("{}/sync-db", ns.base_dir().to_string_lossy());
@@ -70,6 +71,8 @@ pub async fn sync_relay_only(
             // needed to not drop the pre-migration state
             "--state-pruning",
             get_state_pruning_config().as_str(),
+            "--database",
+            database,
         ])
         .env(env);
 
@@ -98,6 +101,7 @@ pub async fn sync_para(
     overrides_path: PathBuf,
     info_path: impl AsRef<str>,
     maybe_target_header: Option<String>,
+    database: &str,
 ) -> Result<(DynNode, String, String, String), ()> {
     let sync_db_path = format!(
         "{}/paras/{}/sync-db",
@@ -171,6 +175,8 @@ pub async fn sync_para(
             // needed to not drop the pre-migration state
             "--state-pruning",
             get_state_pruning_config().as_str(),
+            "--database",
+            database,
             "--",
             "--chain",
             relaychain.as_ref(),

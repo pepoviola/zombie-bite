@@ -60,6 +60,7 @@ pub async fn doppelganger_inner(
     global_base_dir: PathBuf,
     relay_chain: Relaychain,
     paras_to: Vec<Parachain>,
+    database: &str,
 ) -> Result<(), anyhow::Error> {
     // Star the node and wait until finish (with temp dir managed by us)
     info!(
@@ -117,6 +118,7 @@ pub async fn doppelganger_inner(
                 para_default_overrides_path,
                 info_path,
                 maybe_target_header_path,
+                database,
             )
             .boxed(),
         );
@@ -216,6 +218,7 @@ pub async fn doppelganger_inner(
         rc_default_overrides_path,
         &rc_info_path,
         maybe_target_header_path,
+        database,
     )
     .await
     .unwrap();
@@ -243,7 +246,12 @@ pub async fn doppelganger_inner(
         sync_chain.as_str()
     };
 
-    let parachains_path = format!("{sync_db_path}/chains/{sync_chain_in_path}/db/full/parachains");
+    let parachains_path = if database == "rocksdb" {
+        format!("{sync_db_path}/chains/{sync_chain_in_path}/db/full/parachains")
+    } else {
+        format!("{sync_db_path}/chains/{sync_chain_in_path}/paritydb/parachains")
+    };
+
     debug!("Deleting `parachains` db at {parachains_path}");
     tokio::fs::remove_dir_all(parachains_path)
         .await
@@ -266,6 +274,7 @@ pub async fn doppelganger_inner(
         relay_artifacts,
         para_artifacts,
         Some(global_base_dir.clone()),
+        database,
     )
     .await
     .map_err(|e| anyhow!(e.to_string()))?;
@@ -511,6 +520,7 @@ async fn generate_config(
     relaychain: ChainArtifact,
     paras: Vec<ChainArtifact>,
     global_base_dir: Option<PathBuf>,
+    database: &str,
 ) -> Result<NetworkConfig, String> {
     let leaked_rust_log = env::var("RUST_LOG_RC").unwrap_or_else(|_| {
         String::from(
@@ -583,6 +593,7 @@ async fn generate_config(
             "--allow-private-ip".into(),
             "--no-hardware-benchmarks".into(),
             ("--state-pruning", get_state_pruning_config().as_str()).into(),
+            ("--database", database).into(),
         ];
 
         if let Ok(extra_args) = env::var("ZOMBIE_BITE_RC_EXTRA_ARGS") {
@@ -678,6 +689,7 @@ async fn generate_config(
                 "--allow-private-ip".into(),
                 "--no-hardware-benchmarks".into(),
                 ("--state-pruning", get_state_pruning_config().as_str()).into(),
+                ("--database", database).into(),
             ];
 
             if let Ok(extra_args) = env::var("ZOMBIE_BITE_AH_EXTRA_ARGS") {
@@ -751,6 +763,7 @@ pub async fn spawn(
     let base_dir = format!("{}/{}", base_path.to_string_lossy(), step.dir());
     let global_settings = zombienet_configuration::GlobalSettingsBuilder::new()
         .with_base_dir(&base_dir)
+        .with_tear_down_on_failure(false)
         .build()
         .expect("global settings should work");
 
@@ -944,7 +957,9 @@ mod test {
             para_id: Some(1000),
         };
 
-        let network_config = generate_config(relay, vec![ah], None).await.unwrap();
+        let network_config = generate_config(relay, vec![ah], None, "rocksdb")
+            .await
+            .unwrap();
 
         let toml = network_config.dump_to_toml().unwrap();
         assert!(toml.contains("--db-cache=24000"));

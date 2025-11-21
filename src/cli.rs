@@ -51,6 +51,9 @@ pub enum Commands {
         /// Automatically spawn the 'bited' network
         #[arg(long, short = 'm', default_value_t = false, verbatim_doc_comment)]
         and_spawn: bool,
+        /// Db to use
+        #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(["rocksdb", "paritydb"]), default_value="rocksdb", verbatim_doc_comment)]
+        database: String,
     },
     /// Spawn a new instance of the network from the bite step.
     Spawn {

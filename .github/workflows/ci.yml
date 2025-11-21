@@ -36,6 +36,11 @@ jobs:
           shared-key: "wrapper-cache"
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: deps
+        shell: bash
+        run: |
+          sudo apt-get install protobuf-compiler
+
       - name: Build
         run:  cargo build
 

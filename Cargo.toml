@@ -1,6 +1,6 @@
 [package]
 name = "zombie-bite"
-version = "0.2.23"
+version = "0.2.26"
 edition = "2021"
 default-run = "zombie-bite"
 
